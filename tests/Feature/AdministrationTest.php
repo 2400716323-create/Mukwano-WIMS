@@ -16,6 +16,19 @@ class AdministrationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_administrator_can_view_users_index_page(): void
+    {
+        $administrator = User::factory()->create(['role' => 'admin']);
+        User::factory()->create(['role' => 'storekeeper', 'is_active' => true]);
+        User::factory()->create(['role' => 'storekeeper', 'is_active' => false]);
+
+        $response = $this->actingAs($administrator)->get(route('admin.users.index'));
+
+        $response->assertOk();
+        $response->assertSee('User Management');
+        $response->assertSee('Suspend');
+    }
+
     public function test_administrator_can_create_assign_and_deactivate_users_with_audit_entries(): void
     {
         $administrator = User::factory()->create(['role' => 'admin']);

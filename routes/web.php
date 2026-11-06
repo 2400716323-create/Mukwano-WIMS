@@ -64,6 +64,8 @@ Route::middleware('auth')->group(function () {
             Route::post('users', [AdminUserController::class, 'store'])->name('users.store');
             Route::patch('users/{user}/role', [AdminUserController::class, 'updateRole'])->name('users.role');
             Route::patch('users/{user}/status', [AdminUserController::class, 'updateStatus'])->name('users.status');
+            Route::patch('users/{user}/activate', [AdminUserController::class, 'updateStatus'])->name('users.activate');
+            Route::patch('users/{user}/deactivate', [AdminUserController::class, 'updateStatus'])->name('users.deactivate');
             Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
             Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit.index');
             Route::get('settings', [SystemSettingsController::class, 'edit'])->name('settings.edit');

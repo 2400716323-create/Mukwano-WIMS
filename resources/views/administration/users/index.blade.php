@@ -192,13 +192,13 @@
                                 <button class="button secondary" type="submit" style="padding: 3px 8px; font-size: 11px;">Update</button>
                             </form>
                             @if ($user->is_active)
-                                <form class="inline-form" method="post" action="{{ route('admin.users.deactivate', $user) }}" style="margin: 0;">
+                                <form class="inline-form" method="post" action="{{ route('admin.users.status', $user) }}" style="margin: 0;">
                                     @csrf
                                     @method('PATCH')
                                     <button class="button secondary" type="submit" style="padding: 3px 8px; font-size: 11px; color: #d97706;">Suspend</button>
                                 </form>
                             @else
-                                <form class="inline-form" method="post" action="{{ route('admin.users.activate', $user) }}" style="margin: 0;">
+                                <form class="inline-form" method="post" action="{{ route('admin.users.status', $user) }}" style="margin: 0;">
                                     @csrf
                                     @method('PATCH')
                                     <button class="button secondary" type="submit" style="padding: 3px 8px; font-size: 11px; color: #16a34a;">Restore</button>
