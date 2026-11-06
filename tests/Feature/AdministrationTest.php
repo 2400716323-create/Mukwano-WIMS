@@ -187,4 +187,39 @@ class AdministrationTest extends TestCase
 
         $this->assertDatabaseHas('audit_logs', ['event' => 'login']);
     }
+
+    public function test_user_can_upload_and_remove_profile_avatar(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        $imageData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXssAAAAASUVORK5CYII=', true);
+        $file = UploadedFile::fake()->createWithContent('avatar.png', $imageData);
+
+        $this->actingAs($user)
+            ->put(route('profile.update'), [
+                'name' => $user->name,
+                'email' => $user->email,
+                'avatar' => $file,
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $user->refresh();
+        $this->assertNotNull($user->avatar_path);
+        Storage::disk('public')->assertExists($user->avatar_path);
+
+        $oldPath = $user->avatar_path;
+
+        $this->actingAs($user)
+            ->put(route('profile.update'), [
+                'name' => $user->name,
+                'email' => $user->email,
+                'remove_avatar' => 1,
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $user->refresh();
+        $this->assertNull($user->avatar_path);
+        Storage::disk('public')->assertMissing($oldPath);
+    }
 }

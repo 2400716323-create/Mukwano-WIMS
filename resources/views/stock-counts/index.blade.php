@@ -97,7 +97,9 @@
             </thead>
             <tbody>
             @forelse ($stockCounts as $stockCount)
-                @php($accuracy = $accuracyByCount[$stockCount->id])
+                @php
+                    $accuracy = $accuracyByCount[$stockCount->id];
+                @endphp
                 <tr>
                     <td>
                         <a href="{{ route('stock-counts.show', $stockCount) }}" style="font-family: monospace; font-weight: 700; color: #2563eb; text-decoration: none;">

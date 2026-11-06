@@ -164,7 +164,9 @@
                 </thead>
                 <tbody>
                 @foreach ($stockCount->lines as $line)
-                    @php($hideSystem = $stockCount->blind_count && $stockCount->status === 'draft')
+                    @php
+                        $hideSystem = $stockCount->blind_count && $stockCount->status === 'draft';
+                    @endphp
                     <tr>
                         <td>
                             <span style="font-weight: 600; color: #0f172a;">{{ $line->batch->product->sku }}</span>

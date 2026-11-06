@@ -6,9 +6,15 @@
     <div style="max-width: 440px; margin: 40px auto;">
         <div class="card" style="padding: 32px;">
             <div style="text-align: center; margin-bottom: 24px;">
-                <div style="width: 48px; height: 48px; border-radius: 12px; background: var(--navy-800); color: white; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                </div>
+                @if ($systemSettings?->logo_path)
+                    <div style="margin-bottom: 16px;">
+                        <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($systemSettings->logo_path) }}" alt="{{ $systemSettings->company_name ?? 'Logo' }}" style="max-height: 52px; max-width: 200px; object-fit: contain;">
+                    </div>
+                @else
+                    <div style="width: 48px; height: 48px; border-radius: 12px; background: var(--navy-800); color: white; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    </div>
+                @endif
                 <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 6px;">Set New Password</h1>
                 <p class="muted" style="margin: 0; font-size: 13px;">
                     Enter your email address and choose a new secure password of at least 8 characters.

@@ -271,8 +271,7 @@
             align-items: center;
             justify-content: space-between;
             padding: 0 24px;
-            position: sticky;
-            top: 0;
+            position: static;
             z-index: 30;
             gap: 20px;
         }
@@ -795,7 +794,34 @@
         .detail-grid div { padding: 10px 0; border-bottom: 1px solid var(--border-subtle); }
         .pwa-tools { display: flex; justify-content: flex-end; gap: 10px; align-items: center; margin-bottom: 16px; }
         .offline-queue { margin-bottom: 18px; }
-        .offline-queue[hidden], #install-app[hidden] { display: none; }
+        .offline-queue[hidden], #install-app[hidden] { display: none !important; }
+
+        .install-app-btn {
+            background: rgba(37, 99, 235, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #60a5fa;
+            border-radius: 9999px;
+            padding: 5px 12px;
+            font-size: 11.5px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .install-app-btn:hover {
+            background: rgba(37, 99, 235, 0.28);
+            border-color: #3b82f6;
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        .install-app-btn[hidden] {
+            display: none !important;
+        }
         #offline-queue-items { padding-left: 20px; }
         #offline-queue-items li { margin: 12px 0; }
         #offline-queue-items p { margin: 6px 0; }
@@ -885,9 +911,13 @@
         <!-- Navy Role-Aware Sidebar -->
         <aside class="sidebar" id="app-sidebar" aria-label="Main Navigation">
             <div class="sidebar-brand">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                @if ($systemSettings?->logo_path)
+                    <img class="thumb" src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($systemSettings->logo_path) }}" alt="{{ $systemSettings->company_name ?? 'Logo' }}" style="width: 28px; height: 28px; object-fit: contain; border-radius: 6px; background: #ffffff; padding: 2px; flex-shrink: 0;">
+                @else
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                @endif
                 <div style="display: flex; flex-direction: column; overflow: hidden; min-width: 0;">
-                    <strong style="font-size: 14px; font-weight: 800; color: #ffffff; letter-spacing: 0.03em; line-height: 1.1; white-space: nowrap;">MUKWANO WIMS</strong>
+                    <strong style="font-size: 13.5px; font-weight: 800; color: #ffffff; letter-spacing: 0.03em; line-height: 1.1; white-space: nowrap;">{{ $systemSettings?->company_name ?: 'MUKWANO WIMS' }}</strong>
                     <span style="font-size: 10px; color: #94a3b8; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Warehouse Inventory System</span>
                 </div>
             </div>
@@ -1071,6 +1101,12 @@
                 </div>
 
                 <div class="topbar-right">
+                    <!-- Install App Header Pill Button -->
+                    <button id="install-app" type="button" class="install-app-btn" hidden title="Install Mukwano WIMS App">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Install app</span>
+                    </button>
+
                     <!-- Notification Bell with Red Badge -->
                     @php
                         $activeAlertsCount = \Illuminate\Support\Facades\Schema::hasTable('alerts')
@@ -1091,8 +1127,12 @@
 
                     <!-- User and Role Menu with Avatar -->
                     <div class="user-menu">
-                        <div class="user-avatar">
-                            <span>{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</span>
+                        <div class="user-avatar" style="overflow: hidden;">
+                            @if (auth()->user()->avatar_url)
+                                <img src="{{ auth()->user()->avatar_url }}" alt="{{ auth()->user()->name }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                            @else
+                                <span>{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</span>
+                            @endif
                         </div>
                         <div class="user-info">
                             <span class="user-name">{{ auth()->user()->name }}</span>
@@ -1115,10 +1155,16 @@
             @endif
         @endauth
 
+        @guest
+            <!-- Guest Floating Install Button -->
+            <button id="guest-install-app" type="button" class="install-app-btn install-app-trigger" hidden style="position: fixed; bottom: 20px; right: 20px; z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.25);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Install app</span>
+            </button>
+        @endguest
+
         <main>
-            <div class="pwa-tools" data-user-id="{{ auth()->id() ?? '' }}">
-                <button id="install-app" type="button" class="secondary" hidden>Install app</button>
-            </div>
+            <div class="pwa-tools" data-user-id="{{ auth()->id() ?? '' }}" style="display:none;"></div>
 
             @if (session('status'))
                 <div class="notice" role="status">{{ session('status') }}</div>

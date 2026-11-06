@@ -260,8 +260,10 @@
             </div>
 
             <!-- Camera Feedback Strip -->
-            <div class="scanner-status-strip">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div class="scanner-status-strip" id="status-strip">
+                <span id="status-icon" style="display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                </span>
                 <span id="camera-message" role="status" aria-live="polite">Ready. Position code in front of camera or enter manually.</span>
             </div>
         </div>
@@ -322,6 +324,7 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('vendor/jsqr/jsqr.js') }}"></script>
     <script>
         const startButton = document.getElementById('start-camera');
         const stopButton = document.getElementById('stop-camera');
@@ -338,14 +341,41 @@
         let scanning = false;
         let requestPending = false;
 
+        const statusStrip = document.getElementById('status-strip');
+        const statusIcon = document.getElementById('status-icon');
+        let offscreenCanvas = null;
+        let offscreenCtx = null;
+        let useFallbackDecoder = false;
+
         function setStatus(text, type = 'info') {
             cameraMessage.textContent = text;
             if (type === 'error') {
-                cameraMessage.style.color = '#dc2626';
+                cameraMessage.style.color = '#b91c1c';
+                if (statusStrip) {
+                    statusStrip.style.background = '#fef2f2';
+                    statusStrip.style.borderColor = '#fecaca';
+                }
+                if (statusIcon) {
+                    statusIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+                }
             } else if (type === 'success') {
-                cameraMessage.style.color = '#16a34a';
+                cameraMessage.style.color = '#15803d';
+                if (statusStrip) {
+                    statusStrip.style.background = '#f0fdf4';
+                    statusStrip.style.borderColor = '#bbf7d0';
+                }
+                if (statusIcon) {
+                    statusIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>';
+                }
             } else {
                 cameraMessage.style.color = '#475569';
+                if (statusStrip) {
+                    statusStrip.style.background = '#f8fafc';
+                    statusStrip.style.borderColor = '#e2e8f0';
+                }
+                if (statusIcon) {
+                    statusIcon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+                }
             }
         }
 
@@ -371,9 +401,34 @@
             }
 
             try {
-                const codes = await detector.detect(video);
-                if (codes.length > 0) {
-                    codeInput.value = codes[0].rawValue;
+                let codeValue = null;
+
+                if (!useFallbackDecoder && detector) {
+                    const codes = await detector.detect(video);
+                    if (codes.length > 0) {
+                        codeValue = codes[0].rawValue;
+                    }
+                } else if (typeof window.jsQR === 'function') {
+                    if (!offscreenCanvas) {
+                        offscreenCanvas = document.createElement('canvas');
+                        offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+                    }
+                    if (video.videoWidth > 0 && video.videoHeight > 0) {
+                        offscreenCanvas.width = video.videoWidth;
+                        offscreenCanvas.height = video.videoHeight;
+                        offscreenCtx.drawImage(video, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+                        const imgData = offscreenCtx.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+                        const decoded = window.jsQR(imgData.data, imgData.width, imgData.height, {
+                            inversionAttempts: "dontInvert"
+                        });
+                        if (decoded && decoded.data) {
+                            codeValue = decoded.data;
+                        }
+                    }
+                }
+
+                if (codeValue) {
+                    codeInput.value = codeValue;
                     stopCamera();
                     setStatus('QR code captured! Resolving details...', 'success');
                     form.requestSubmit();
@@ -389,13 +444,42 @@
         }
 
         startButton.addEventListener('click', async () => {
-            if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
+            let hasNativeDetector = ('BarcodeDetector' in window);
+            let hasJsFallback = (typeof window.jsQR === 'function');
+            const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+            if (!hasMediaDevices) {
+                setStatus('Camera hardware is not accessible in this context (requires HTTPS or localhost). Please enter the code manually.', 'error');
+                return;
+            }
+
+            if (!hasNativeDetector && !hasJsFallback) {
+                // Attempt dynamic load if not already ready
+                try {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = '{{ asset("vendor/jsqr/jsqr.js") }}';
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                    hasJsFallback = (typeof window.jsQR === 'function');
+                } catch (e) {
+                    // Fallback load failed
+                }
+            }
+
+            if (!hasNativeDetector && !hasJsFallback) {
                 setStatus('Native camera QR scanning is not supported by this browser. Please enter the code manually.', 'error');
                 return;
             }
 
+            useFallbackDecoder = !hasNativeDetector && hasJsFallback;
+
             try {
-                detector = new BarcodeDetector({ formats: ['qr_code'] });
+                if (hasNativeDetector) {
+                    detector = new BarcodeDetector({ formats: ['qr_code'] });
+                }
                 cameraStream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: { ideal: 'environment' } },
                     audio: false,

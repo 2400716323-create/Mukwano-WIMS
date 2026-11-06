@@ -155,10 +155,14 @@
             @forelse ($users as $user)
                 <tr>
                     <td>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <div style="width: 32px; height: 32px; border-radius: 50%; background: #2563eb; color: #fff; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                {{ strtoupper(substr($user->name, 0, 1)) }}
-                            </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            @if ($user->avatar_url)
+                                <img src="{{ $user->avatar_url }}" alt="{{ $user->name }}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid #e2e8f0; flex-shrink: 0;">
+                            @else
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: #2563eb; color: #fff; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    {{ strtoupper(substr($user->name, 0, 1)) }}
+                                </div>
+                            @endif
                             <span style="font-weight: 700; color: #0f172a;">{{ $user->name }}</span>
                         </div>
                     </td>

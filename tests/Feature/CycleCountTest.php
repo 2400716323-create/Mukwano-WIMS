@@ -384,4 +384,17 @@ class CycleCountTest extends TestCase
             'status' => 'active',
         ]);
     }
+
+    public function test_stock_counts_index_renders_successfully(): void
+    {
+        $user = User::factory()->create();
+        $product = Product::factory()->create();
+        $bin = $this->createBin();
+        $this->createStock($product, $bin, 'COUNT-1', '10.000');
+        $this->createCount($product, $bin, null, $user);
+
+        $this->actingAs($user)
+            ->get(route('stock-counts.index'))
+            ->assertOk();
+    }
 }

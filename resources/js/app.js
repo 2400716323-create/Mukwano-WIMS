@@ -1,3 +1,6 @@
+import jsQR from 'jsqr';
+window.jsQR = jsQR;
+
 const networkStatus = document.getElementById('network-status');
 const installButton = document.getElementById('install-app');
 const queuePanel = document.getElementById('offline-queue');
@@ -280,20 +283,22 @@ renderQueue();
 window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     installPrompt = event;
-    if (installButton) installButton.hidden = false;
+    document.querySelectorAll('#install-app, .install-app-trigger').forEach(btn => btn.hidden = false);
 });
 
 window.addEventListener('appinstalled', () => {
     installPrompt = null;
-    if (installButton) installButton.hidden = true;
+    document.querySelectorAll('#install-app, .install-app-trigger').forEach(btn => btn.hidden = true);
 });
 
-installButton?.addEventListener('click', async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    await installPrompt.userChoice;
-    installPrompt = null;
-    installButton.hidden = true;
+document.querySelectorAll('#install-app, .install-app-trigger').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        if (!installPrompt) return;
+        installPrompt.prompt();
+        await installPrompt.userChoice;
+        installPrompt = null;
+        document.querySelectorAll('#install-app, .install-app-trigger').forEach(b => b.hidden = true);
+    });
 });
 
 if ('serviceWorker' in navigator && window.isSecureContext) {

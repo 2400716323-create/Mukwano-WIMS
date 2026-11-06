@@ -1,7 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240" role="img" aria-label="No product image">
-  <rect width="240" height="240" rx="18" fill="#f1f5f2"/>
-  <path d="M56 75h128v100H56z" fill="#dbe6de"/>
-  <path d="m56 151 38-39 25 25 20-20 49 49H56z" fill="#8eaa96"/>
-  <circle cx="158" cy="99" r="13" fill="#8eaa96"/>
-  <text x="120" y="207" fill="#53665a" font-family="Arial,sans-serif" font-size="13" text-anchor="middle">No image available</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240" fill="none" role="img" aria-label="No product image available">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="240" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="boxTop" x1="120" y1="62" x2="120" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="boxLeft" x1="72" y1="92" x2="120" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#1e40af"/>
+    </linearGradient>
+    <linearGradient id="boxRight" x1="120" y1="92" x2="168" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <filter id="shadow" x="52" y="58" width="136" height="126" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="240" height="240" rx="16" fill="url(#bg)"/>
+  <rect x="1" y="1" width="238" height="238" rx="15" stroke="#e2e8f0" stroke-width="2"/>
+
+  <!-- Subtle Blueprint Grid Pattern -->
+  <path d="M40 0v240M80 0v240M120 0v240M160 0v240M200 0v240" stroke="#cbd5e1" stroke-width="0.5" stroke-opacity="0.4" stroke-dasharray="3 3"/>
+  <path d="M0 40h240M0 80h240M0 120h240M0 160h240M0 200h240" stroke="#cbd5e1" stroke-width="0.5" stroke-opacity="0.4" stroke-dasharray="3 3"/>
+
+  <!-- Warehouse Package Isometric Illustration with Soft Shadow -->
+  <g filter="url(#shadow)">
+    <!-- Top Face -->
+    <path d="M120 66L164 90L120 114L76 90L120 66Z" fill="url(#boxTop)"/>
+    <!-- Left Face -->
+    <path d="M76 90L120 114V164L76 138V90Z" fill="url(#boxLeft)"/>
+    <!-- Right Face -->
+    <path d="M120 114L164 90V138L120 164V114Z" fill="url(#boxRight)"/>
+    <!-- Package Tape Accent -->
+    <path d="M120 66L132 72.5L108 85.5L96 79L120 66Z" fill="#93c5fd" fill-opacity="0.6"/>
+    <path d="M108 85.5L120 92V114L108 107.5V85.5Z" fill="#60a5fa" fill-opacity="0.5"/>
+  </g>
+
+  <!-- Scan Target Reticle Accent -->
+  <path d="M58 54h-8v8M182 54h8v8M58 186h-8v-8M182 186h8v-8" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Label Typography -->
+  <text x="120" y="196" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" letter-spacing="0.04em" text-anchor="middle">NO PRODUCT IMAGE</text>
+  <text x="120" y="211" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="500" text-anchor="middle">Catalog Asset Pending</text>
 </svg>
