@@ -490,32 +490,6 @@
             gap: 8px;
         }
 
-        /* Breadcrumbs */
-        .breadcrumbs-bar {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border-subtle);
-            padding: 8px 20px;
-            font-size: 12px;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .breadcrumbs-bar a {
-            color: var(--text-muted);
-            text-decoration: none;
-        }
-
-        .breadcrumbs-bar a:hover {
-            color: var(--primary);
-            text-decoration: underline;
-        }
-
-        .breadcrumbs-separator {
-            color: #cbd5e1;
-        }
-
         /* Main Content Container - Full width 100vw fit */
         main {
             flex: 1;
@@ -576,16 +550,34 @@
         /* Unified Top Metric KPI Cards Grid */
         .stat-grid-4 {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 14px;
             margin-bottom: 16px;
         }
 
+        @media (max-width: 1280px) {
+            .stat-grid-4 {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .stat-grid-4 {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .stat-grid-3 {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 14px;
             margin-bottom: 16px;
+        }
+
+        @media (max-width: 900px) {
+            .stat-grid-3 {
+                grid-template-columns: 1fr;
+            }
         }
 
         .stat-card {
@@ -600,6 +592,8 @@
             color: inherit;
             box-shadow: 0 1px 3px rgba(0,0,0,0.02);
             transition: all 0.15s ease;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .stat-card:hover {
@@ -623,12 +617,17 @@
             display: flex;
             flex-direction: column;
             gap: 2px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .stat-title {
             font-size: 12.5px;
             font-weight: 600;
             color: #64748b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .stat-num {
@@ -642,6 +641,9 @@
         .stat-sub {
             font-size: 11.5px;
             color: #94a3b8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         /* Unified Search & Filter Bar Card */
@@ -1038,10 +1040,17 @@
                         ERP Exchange
                     </a>
                 @endif
+                @php
+                    $unresolvedAlertsCount = \Illuminate\Support\Facades\Schema::hasTable('alerts')
+                        ? \App\Models\Alert::query()->where('condition_active', true)->whereNull('resolved_at')->count()
+                        : 0;
+                @endphp
                 <a href="{{ route('alerts.index') }}" class="nav-item {{ request()->routeIs('alerts.*') ? 'active' : '' }}">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
                     <span style="flex: 1;">Alerts</span>
-                    <span style="background: #ef4444; color: white; font-size: 10px; font-weight: 700; border-radius: 9999px; padding: 1px 7px; min-width: 18px; text-align: center;">3</span>
+                    @if ($unresolvedAlertsCount > 0)
+                        <span style="background: #ef4444; color: white; font-size: 10px; font-weight: 700; border-radius: 9999px; padding: 1px 7px; min-width: 18px; text-align: center;">{{ $unresolvedAlertsCount }}</span>
+                    @endif
                 </a>
 
                 @can('manage-administration')
@@ -1108,15 +1117,11 @@
                     </button>
 
                     <!-- Notification Bell with Red Badge -->
-                    @php
-                        $activeAlertsCount = \Illuminate\Support\Facades\Schema::hasTable('alerts')
-                            ? \App\Models\Alert::query()->where('condition_active', true)->whereNull('resolved_at')->count()
-                            : 0;
-                        $displayAlertsBadge = $activeAlertsCount > 0 ? $activeAlertsCount : 3;
-                    @endphp
                     <a href="{{ route('alerts.index') }}" class="notification-btn" aria-label="Alerts">
                         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-                        <span class="notification-badge">{{ $displayAlertsBadge }}</span>
+                        @if ($unresolvedAlertsCount > 0)
+                            <span class="notification-badge">{{ $unresolvedAlertsCount }}</span>
+                        @endif
                     </a>
 
                     <!-- Short System Online Status -->
@@ -1145,14 +1150,6 @@
                     </div>
                 </div>
             </header>
-
-            @if (!request()->routeIs('dashboard'))
-                <!-- Breadcrumbs Bar -->
-                <nav class="breadcrumbs-bar" aria-label="Breadcrumbs">
-                    <a href="{{ route('dashboard') }}">Home</a>
-                    @yield('breadcrumbs')
-                </nav>
-            @endif
         @endauth
 
         @guest

@@ -450,6 +450,7 @@
 
             if (!hasMediaDevices) {
                 setStatus('Camera hardware is not accessible in this context (requires HTTPS or localhost). Please enter the code manually.', 'error');
+                if (codeInput) codeInput.focus();
                 return;
             }
 
@@ -469,17 +470,28 @@
                 }
             }
 
-            if (!hasNativeDetector && !hasJsFallback) {
-                setStatus('Native camera QR scanning is not supported by this browser. Please enter the code manually.', 'error');
+            // Test native detector construction if supported
+            if (hasNativeDetector) {
+                try {
+                    detector = new BarcodeDetector({ formats: ['qr_code'] });
+                    useFallbackDecoder = false;
+                } catch (e) {
+                    detector = null;
+                    hasNativeDetector = false;
+                }
+            }
+
+            if (!detector && hasJsFallback) {
+                useFallbackDecoder = true;
+            }
+
+            if (!detector && !hasJsFallback) {
+                setStatus('Camera QR decoder initializing. If this persists, please enter code manually below.', 'error');
+                if (codeInput) codeInput.focus();
                 return;
             }
 
-            useFallbackDecoder = !hasNativeDetector && hasJsFallback;
-
             try {
-                if (hasNativeDetector) {
-                    detector = new BarcodeDetector({ formats: ['qr_code'] });
-                }
                 cameraStream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: { ideal: 'environment' } },
                     audio: false,
@@ -497,7 +509,12 @@
                 requestAnimationFrame(scanFrame);
             } catch (error) {
                 stopCamera();
-                setStatus('Camera access was denied or device is unavailable. Enter code manually.', 'error');
+                const isPermission = error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError';
+                const msg = isPermission
+                    ? 'Camera permission denied. Allow camera access in browser settings, or enter code manually.'
+                    : 'No camera hardware found or device in use. Please enter code manually.';
+                setStatus(msg, 'error');
+                if (codeInput) codeInput.focus();
             }
         });
 
