@@ -40,3 +40,13 @@ Thumbs.db
 *.tmp
 *.swp
 *.blade.php.backup*
+
+
+# Additional ignore rules from the original GitHub repository
+npm-debug.log
+yarn-error.log
+bootstrap/compiled.php
+app/storage/
+public_html/storage
+public_html/hot
+/.vagrant

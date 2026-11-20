@@ -1,4 +1,4 @@
-# Mukwano WIMS
+# Mukwano-WIMS
 
 Mukwano WIMS is a Laravel warehouse and inventory application for product and
 supplier records, purchase orders, goods receiving, bin inventory, FEFO
