@@ -1,1365 +1,886 @@
+
 @extends('catalog.layout')
 
 @section('title', 'Dashboard')
 
 @section('content')
-    <div class="dashboard-wrap">
-        <!-- 1. Hero Welcome Banner -->
-        <section class="hero-banner" aria-label="Warehouse status overview">
-            <div class="hero-content">
-                <div class="hero-text">
-                    <h1 class="hero-title">Welcome back, {{ auth()->user()->first_name ?? explode(' ', auth()->user()->name)[0] }}!</h1>
-                    <p class="hero-subtitle">Here's what's happening with your warehouse today.</p>
-                    <div class="hero-badges">
-                        <span class="hero-badge">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                            Tuesday, 22 April 2025
-                        </span>
-                        <span class="hero-badge">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                            Namanve Warehouse
-                        </span>
-                    </div>
-                </div>
-                <div class="hero-widget">
-                    <div class="hero-location">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                        <div>
-                            <span class="widget-head">Namanve Warehouse</span>
-                            <span class="widget-sub">Kampala, Uganda</span>
-                        </div>
-                    </div>
-                    <div class="hero-weather">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
-                        <div>
-                            <span class="widget-head">24°C</span>
-                            <span class="widget-sub">Partly Cloudy</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+<div class="mw-dashboard">
 
-        <!-- 2. Four Top KPI Cards -->
-        <section class="kpi-grid" aria-label="Key Performance Indicators">
-            <!-- Total Products -->
-            <a class="kpi-card" href="{{ route('products.index') }}">
-                <div class="kpi-icon-wrap" style="background: #dcfce7; color: #16a34a;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                </div>
-                <div class="kpi-body">
-                    <span class="kpi-title">Total Products</span>
-                    <strong class="kpi-num">{{ number_format($metrics['total_products'] ?? 245) }}</strong>
-                    <span class="kpi-caption">Active Products</span>
-                </div>
-            </a>
-
-            <!-- Total Stock Quantity -->
-            <a class="kpi-card" href="{{ route('inventory.index') }}">
-                <div class="kpi-icon-wrap" style="background: #ffedd5; color: #ea580c;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                </div>
-                <div class="kpi-body">
-                    <span class="kpi-title">Total Stock Quantity</span>
-                    <strong class="kpi-num">{{ number_format($metrics['stock_quantity'] ?? 125480) }}</strong>
-                    <span class="kpi-caption">Units</span>
-                </div>
-            </a>
-
-            <!-- Active Batches -->
-            <a class="kpi-card" href="{{ route('batches.index') }}">
-                <div class="kpi-icon-wrap" style="background: #ccfbf1; color: #0d9488;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                </div>
-                <div class="kpi-body">
-                    <span class="kpi-title">Active Batches</span>
-                    <strong class="kpi-num">{{ number_format($metrics['active_batches'] ?? 612) }}</strong>
-                    <span class="kpi-caption">Batches</span>
-                </div>
-            </a>
-
-            <!-- Warehouse Locations -->
-            <a class="kpi-card" href="{{ route('locations.index') }}">
-                <div class="kpi-icon-wrap" style="background: #dbeafe; color: #2563eb;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                </div>
-                <div class="kpi-body">
-                    <span class="kpi-title">Warehouse Locations</span>
-                    <strong class="kpi-num">{{ number_format($metrics['warehouse_locations'] ?? 48) }}</strong>
-                    <span class="kpi-caption">Locations</span>
-                </div>
-            </a>
-        </section>
-
-        <!-- 3. Analytics Charts Row (3 Cards) -->
-        <section class="analytics-grid" aria-label="Warehouse Analytics and Trends">
-            <!-- Stock by Category -->
-            <div class="card chart-box">
-                <div class="chart-header">
-                    <h2>Stock by Category</h2>
-                    <select class="chart-select" aria-label="Category filter">
-                        <option>All Categories</option>
-                        @foreach ($categories as $cat)
-                            <option>{{ $cat->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="chart-content doughnut-layout">
-                    <div class="doughnut-canvas-wrap">
-                        <canvas id="categoryDonutChart"></canvas>
-                        <div class="chart-center-label">
-                            <span class="center-val">{{ number_format($metrics['stock_quantity'] ?? 125480) }}</span>
-                            <span class="center-sub">Total Quantity</span>
-                        </div>
-                    </div>
-                    <div class="chart-legend-list">
-                        @foreach ($categoryBreakdown as $catItem)
-                            <div class="legend-row">
-                                <span class="legend-dot" style="background: {{ $catItem['color'] }};"></span>
-                                <span class="legend-name">{{ $catItem['name'] }}</span>
-                                <span class="legend-pct">{{ $catItem['percentage'] }}%</span>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-
-            <!-- Stock Movement (Last 7 Days) -->
-            <div class="card chart-box">
-                <div class="chart-header">
-                    <h2>Stock Movement <small>(Last 7 Days)</small></h2>
-                    <div class="chart-header-actions">
-                        <div class="movement-legend-inline">
-                            <span><span class="legend-dot" style="background: #10b981;"></span> Received</span>
-                            <span><span class="legend-dot" style="background: #2563eb;"></span> Issued</span>
-                        </div>
-                        <select class="chart-select" aria-label="Warehouse filter">
-                            <option>All Warehouses</option>
-                            <option>Namanve Warehouse</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="chart-content line-layout">
-                    <canvas id="stockMovementChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Expiry Status -->
-            <div class="card chart-box">
-                <div class="chart-header">
-                    <h2>Expiry Status</h2>
-                </div>
-                <div class="chart-content doughnut-layout">
-                    <div class="doughnut-canvas-wrap">
-                        <canvas id="expiryDonutChart"></canvas>
-                        <div class="chart-center-label">
-                            <span class="center-val">{{ number_format($metrics['active_batches'] ?? 612) }}</span>
-                            <span class="center-sub">Batches</span>
-                        </div>
-                    </div>
-                    <div class="chart-legend-list">
-                        @foreach ($expiryBreakdown as $expItem)
-                            <div class="legend-row">
-                                <span class="legend-dot" style="background: {{ $expItem['color'] }};"></span>
-                                <span class="legend-name">{{ $expItem['label'] }}</span>
-                                <span class="legend-pct">{{ $expItem['percentage'] }}%</span>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 4. Main 2-Column Split: Tables (Left) & Widgets (Right) -->
-        <div class="main-dashboard-columns">
-            <!-- Left Column: 2x2 Data Tables Grid -->
-            <div class="tables-column">
-                <!-- Row 1: Movements & Receipts -->
-                <div class="tables-row-grid">
-                    <!-- Recent Stock Movements -->
-                    <div class="card table-card">
-                        <div class="table-card-head">
-                            <h2>Recent Stock Movements</h2>
-                            <a href="{{ route('inventory.ledger') }}" class="view-all-link">View All</a>
-                        </div>
-                        <div class="table-wrap">
-                            <table class="clean-table">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Product</th>
-                                        <th>Type</th>
-                                        <th>Quantity</th>
-                                        <th>Location</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($targetMovements as $mov)
-                                        <tr>
-                                            <td class="text-muted text-nowrap">{{ $mov['date'] }}</td>
-                                            <td>
-                                                <div class="product-cell">
-                                                    <div class="prod-thumb-mini">
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-                                                    </div>
-                                                    <span class="prod-name-text">{{ $mov['product'] }}</span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                @if ($mov['badge'] === 'received')
-                                                    <span class="badge badge-success">Received</span>
-                                                @elseif ($mov['badge'] === 'issued')
-                                                    <span class="badge badge-info">Issued</span>
-                                                @else
-                                                    <span class="badge badge-purple">Transferred</span>
-                                                @endif
-                                            </td>
-                                            <td class="font-bold {{ str_starts_with($mov['quantity'], '+') ? 'text-success' : 'text-slate' }}">{{ $mov['quantity'] }}</td>
-                                            <td><span class="location-pill">{{ $mov['location'] }}</span></td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Recent Goods Receipts -->
-                    <div class="card table-card">
-                        <div class="table-card-head">
-                            <h2>Recent Goods Receipts</h2>
-                            <a href="{{ route('goods-receipts.index') }}" class="view-all-link">View All</a>
-                        </div>
-                        <div class="table-wrap">
-                            <table class="clean-table">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>GRN No.</th>
-                                        <th>Supplier</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($targetReceipts as $rec)
-                                        <tr>
-                                            <td class="text-muted text-nowrap">{{ $rec['date'] }}</td>
-                                            <td><a href="{{ route('goods-receipts.index') }}" class="code-link">{{ $rec['receipt_number'] }}</a></td>
-                                            <td class="text-dark font-medium">{{ $rec['supplier'] }}</td>
-                                            <td><span class="badge badge-success">{{ $rec['status'] }}</span></td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Row 2: Dispatches & Low Stock -->
-                <div class="tables-row-grid">
-                    <!-- Recent Dispatches -->
-                    <div class="card table-card">
-                        <div class="table-card-head">
-                            <h2>Recent Dispatches</h2>
-                            <a href="{{ route('dispatch-requests.index') }}" class="view-all-link">View All</a>
-                        </div>
-                        <div class="table-wrap">
-                            <table class="clean-table">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>GDN No.</th>
-                                        <th>Customer / Department</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($targetDispatches as $disp)
-                                        <tr>
-                                            <td class="text-muted text-nowrap">{{ $disp['date'] }}</td>
-                                            <td><a href="{{ route('dispatch-requests.index') }}" class="code-link">{{ $disp['gdn_number'] }}</a></td>
-                                            <td class="text-dark font-medium">{{ $disp['customer'] }}</td>
-                                            <td><span class="badge badge-info">{{ $disp['status'] }}</span></td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Low Stock Products -->
-                    <div class="card table-card">
-                        <div class="table-card-head">
-                            <h2>Low Stock Products</h2>
-                            <a href="{{ route('inventory.index', ['filter' => 'low_stock']) }}" class="view-all-link">View All</a>
-                        </div>
-                        <div class="table-wrap">
-                            <table class="clean-table">
-                                <thead>
-                                    <tr>
-                                        <th>Product</th>
-                                        <th>Current Stock</th>
-                                        <th>Min Level</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($targetLowStock as $low)
-                                        <tr>
-                                            <td>
-                                                <div class="product-cell">
-                                                    <div class="prod-thumb-mini" style="color: {{ $low['color'] }};">
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                                                    </div>
-                                                    <span class="prod-name-text">{{ $low['product'] }}</span>
-                                                </div>
-                                            </td>
-                                            <td class="font-bold text-dark">{{ $low['current_stock'] }}</td>
-                                            <td class="text-muted">{{ $low['min_level'] }}</td>
-                                            <td><span class="badge badge-danger">Low</span></td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Column: Alerts, Quick Actions, Download Reports, Install App -->
-            <div class="sidebar-column">
-                <!-- Alerts Widget -->
-                <div class="card widget-card">
-                    <div class="widget-head-flex">
-                        <div class="widget-title-iconic">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-                            <h2>Alerts</h2>
-                        </div>
-                        <a href="{{ route('alerts.index') }}" class="view-all-link">View All</a>
-                    </div>
-                    <div class="alerts-stack">
-                        @foreach ($targetAlerts as $alert)
-                            <div class="alert-row">
-                                <div class="alert-icon-wrap alert-{{ $alert['severity'] }}">
-                                    @if ($alert['icon'] === 'alert')
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                                    @elseif ($alert['icon'] === 'clock')
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                    @elseif ($alert['icon'] === 'order')
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-                                    @else
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-                                    @endif
-                                </div>
-                                <div class="alert-content">
-                                    <div class="alert-title-text">{{ $alert['title'] }}</div>
-                                    <a href="{{ $alert['link'] }}" class="alert-action-link">View details</a>
-                                </div>
-                                <span class="alert-time">{{ $alert['time'] }}</span>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-
-                <!-- Quick Actions Widget -->
-                <div class="card widget-card">
-                    <div class="widget-head-flex">
-                        <h2>Quick Actions</h2>
-                    </div>
-                    <div class="quick-actions-2x2">
-                        <a href="{{ route('goods-receipts.create') }}" class="action-tile">
-                            <div class="action-icon" style="background: #dcfce7; color: #16a34a;">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                            </div>
-                            <div class="action-text">
-                                <strong>Receive Goods</strong>
-                                <span>Create GRN</span>
-                            </div>
-                        </a>
-                        <a href="{{ route('dispatch-requests.create') }}" class="action-tile">
-                            <div class="action-icon" style="background: #dbeafe; color: #2563eb;">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
-                            </div>
-                            <div class="action-text">
-                                <strong>Dispatch Goods</strong>
-                                <span>Create GDN</span>
-                            </div>
-                        </a>
-                        <a href="{{ route('stock-transfers.create') }}" class="action-tile">
-                            <div class="action-icon" style="background: #f3e8ff; color: #7c3aed;">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
-                            </div>
-                            <div class="action-text">
-                                <strong>Transfer Stock</strong>
-                                <span>Between Locations</span>
-                            </div>
-                        </a>
-                        <a href="{{ route('reports.index') }}" class="action-tile">
-                            <div class="action-icon" style="background: #ffedd5; color: #ea580c;">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-                            </div>
-                            <div class="action-text">
-                                <strong>View Reports</strong>
-                                <span>Download & Print</span>
-                            </div>
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Download Reports Widget -->
-                <div class="card widget-card">
-                    <div class="widget-head-flex">
-                        <h2>Download Reports</h2>
-                        <a href="{{ route('reports.index') }}" class="view-all-link">View All</a>
-                    </div>
-                    <div class="reports-download-list">
-                        @foreach ($downloadReports as $rep)
-                            <div class="report-download-row">
-                                <div class="report-lead">
-                                    <div class="report-type-icon" style="color: {{ $rep['color'] }};">
-                                        @if ($rep['icon'] === 'truck')
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
-                                        @elseif ($rep['icon'] === 'arrows')
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
-                                        @elseif ($rep['icon'] === 'warning')
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                                        @elseif ($rep['icon'] === 'chart')
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                                        @else
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-                                        @endif
-                                    </div>
-                                    <span class="report-name-label">{{ $rep['title'] }}</span>
-                                </div>
-                                <div class="report-btns">
-                                    <a href="{{ route('reports.pdf', ['report' => $rep['key']]) }}" class="btn-badge-pdf" title="Download PDF">PDF</a>
-                                    <a href="{{ route('reports.csv', ['report' => $rep['key']]) }}" class="btn-badge-csv" title="Download CSV">CSV</a>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-
-                <!-- Install as App Widget -->
-                <div class="card widget-card install-app-card">
-                    <div class="install-card-lead">
-                        <div class="install-icon-wrap">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
-                        </div>
-                        <div class="install-text">
-                            <strong>Install as App</strong>
-                            <span>Get quick access on your device</span>
-                        </div>
-                    </div>
-                    <button type="button" class="btn-install" onclick="triggerPwaInstall()">Install</button>
-                </div>
+    {{-- Welcome banner --}}
+    <section class="mw-hero">
+        <div>
+            <span class="mw-eyebrow">MUKWANO WAREHOUSE MANAGEMENT</span>
+            <h1>Welcome back, {{ auth()->user()->first_name ?? explode(' ', auth()->user()->name)[0] }}!</h1>
+            <p>Here is an overview of your warehouse and inventory information.</p>
+            <div class="mw-hero-meta">
+                <span>📅 {{ now()->format('l, d F Y') }}</span>
+                <span>📍 Namanve Warehouse</span>
             </div>
         </div>
-    </div>
+        <div class="mw-hero-location">
+            <span class="mw-location-icon">⌖</span>
+            <div>
+                <strong>Namanve Warehouse</strong>
+                <small>Kampala, Uganda</small>
+            </div>
+        </div>
+    </section>
+
+    {{-- KPI cards --}}
+    <section class="mw-kpis">
+        <a href="{{ route('products.index') }}" class="mw-kpi">
+            <span class="mw-kpi-icon green">▦</span>
+            <div>
+                <small>Total Products</small>
+                <strong>{{ number_format($metrics['total_products'] ?? 0) }}</strong>
+                <span>Products in catalogue</span>
+            </div>
+        </a>
+
+        <a href="{{ route('inventory.index') }}" class="mw-kpi">
+            <span class="mw-kpi-icon orange">▤</span>
+            <div>
+                <small>Total Stock Quantity</small>
+                <strong>{{ number_format($metrics['stock_quantity'] ?? 0) }}</strong>
+                <span>Units recorded</span>
+            </div>
+        </a>
+
+        <a href="{{ route('inventory.index') }}" class="mw-kpi">
+            <span class="mw-kpi-icon purple">▥</span>
+            <div>
+                <small>Inventory Management</small>
+                <strong class="mw-manage">View Inventory</strong>
+                <span>Review inventory records</span>
+            </div>
+        </a>
+
+        <a href="{{ route('batches.index') }}" class="mw-kpi">
+            <span class="mw-kpi-icon teal">▦</span>
+            <div>
+                <small>Active Batches</small>
+                <strong>{{ number_format($metrics['active_batches'] ?? 0) }}</strong>
+                <span>Recorded batches</span>
+            </div>
+        </a>
+
+        <a href="{{ route('locations.index') }}" class="mw-kpi">
+            <span class="mw-kpi-icon blue">⌖</span>
+            <div>
+                <small>Warehouse Locations</small>
+                <strong>{{ number_format($metrics['warehouse_locations'] ?? 0) }}</strong>
+                <span>Storage locations</span>
+            </div>
+        </a>
+    </section>
+
+    {{-- Analytics --}}
+    <section class="mw-section">
+        <div class="mw-section-heading">
+            <div>
+                <h2>Warehouse Analytics</h2>
+                <p>Visual summaries of your inventory information</p>
+            </div>
+        </div>
+
+        <div class="mw-analytics">
+
+            <article class="mw-card">
+                <div class="mw-card-heading">
+                    <div>
+                        <h3>Stock by Category</h3>
+                        <p>Quantity across product categories</p>
+                    </div>
+                </div>
+                <div class="mw-donut-area">
+                    <div class="mw-donut">
+                        <canvas id="categoryDonutChart"></canvas>
+                        <div class="mw-donut-center">
+                            <strong>{{ number_format($metrics['stock_quantity'] ?? 0) }}</strong>
+                            <small>Total Units</small>
+                        </div>
+                    </div>
+                    <div class="mw-legend">
+                        @forelse ($categoryBreakdown as $item)
+                            <div class="mw-legend-row">
+                                <span class="mw-dot" style="background:{{ $item['color'] }};"></span>
+                                <span>{{ $item['name'] }}</span>
+                                <strong>{{ $item['percentage'] }}%</strong>
+                            </div>
+                        @empty
+                            <p class="mw-empty">No category information available.</p>
+                        @endforelse
+                    </div>
+                </div>
+            </article>
+
+            <article class="mw-card">
+                <div class="mw-card-heading">
+                    <div>
+                        <h3>Stock Movement</h3>
+                        <p>Recorded activity over the last 7 days</p>
+                    </div>
+                </div>
+                <div class="mw-movement-legend">
+                    <span><i class="mw-dot" style="background:#10b981"></i> Received</span>
+                    <span><i class="mw-dot" style="background:#2563eb"></i> Issued</span>
+                    <span><i class="mw-dot" style="background:#f59e0b"></i> Put-away</span>
+                    <span><i class="mw-dot" style="background:#8b5cf6"></i> Transferred</span>
+                </div>
+                <div class="mw-line-chart">
+                    <canvas id="stockMovementChart"></canvas>
+                </div>
+            </article>
+
+            <article class="mw-card">
+                <div class="mw-card-heading">
+                    <div>
+                        <h3>Expiry Status</h3>
+                        <p>Batch expiry overview</p>
+                    </div>
+                </div>
+                <div class="mw-donut-area">
+                    <div class="mw-donut">
+                        <canvas id="expiryDonutChart"></canvas>
+                        <div class="mw-donut-center">
+                            <strong>{{ number_format($metrics['active_batches'] ?? 0) }}</strong>
+                            <small>Batches</small>
+                        </div>
+                    </div>
+                    <div class="mw-legend">
+                        @forelse ($expiryBreakdown as $item)
+                            <div class="mw-legend-row">
+                                <span class="mw-dot" style="background:{{ $item['color'] }};"></span>
+                                <span>{{ $item['label'] }}</span>
+                                <strong>{{ $item['percentage'] }}%</strong>
+                            </div>
+                        @empty
+                            <p class="mw-empty">No expiry information available.</p>
+                        @endforelse
+                    </div>
+                </div>
+            </article>
+
+        </div>
+    </section>
+
+    {{-- Records --}}
+    <section class="mw-section">
+        <div class="mw-section-heading">
+            <div>
+                <h2>Warehouse Records</h2>
+                <p>Recent records and inventory information</p>
+            </div>
+        </div>
+
+        <div class="mw-record-grid">
+
+            <article class="mw-card">
+                <div class="mw-card-heading">
+                    <h3>Recent Stock Movements</h3>
+                    <a href="{{ route('inventory.ledger') }}">View all</a>
+                </div>
+                <div class="mw-table-wrap">
+                    <table class="mw-table">
+                        <thead>
+                            <tr><th>Date</th><th>Product</th><th>Type</th><th>Quantity</th><th>Location</th></tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($targetMovements as $mov)
+                                <tr>
+                                    <td>{{ $mov['date'] }}</td>
+                                    <td>{{ $mov['product'] }}</td>
+                                    <td>
+                                        <span class="mw-status {{ $mov['badge'] === 'received' ? 'success' : ($mov['badge'] === 'issued' ? 'info' : 'purple') }}">
+                                            {{ ucfirst($mov['badge']) }}
+                                        </span>
+                                    </td>
+                                    <td>{{ $mov['quantity'] }}</td>
+                                    <td>{{ $mov['location'] }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="mw-empty">No movement records to display.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="mw-card">
+                <div class="mw-card-heading">
+                    <h3>Recent Goods Receipts</h3>
+                    <a href="{{ route('goods-receipts.index') }}">View all</a>
+                </div>
+                <div class="mw-table-wrap">
+                    <table class="mw-table">
+                        <thead>
+                            <tr><th>Date</th><th>GRN No.</th><th>Supplier</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($targetReceipts as $rec)
+                                <tr>
+                                    <td>{{ $rec['date'] }}</td>
+                                    <td>{{ $rec['receipt_number'] }}</td>
+                                    <td>{{ $rec['supplier'] }}</td>
+                                    <td><span class="mw-status success">{{ $rec['status'] }}</span></td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="mw-empty">No receipt records to display.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="mw-card">
+                <div class="mw-card-heading">
+                    <h3>Recent Dispatches</h3>
+                    <a href="{{ route('dispatch-requests.index') }}">View all</a>
+                </div>
+                <div class="mw-table-wrap">
+                    <table class="mw-table">
+                        <thead>
+                            <tr><th>Date</th><th>GDN No.</th><th>Customer / Department</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($targetDispatches as $disp)
+                                <tr>
+                                    <td>{{ $disp['date'] }}</td>
+                                    <td>{{ $disp['gdn_number'] }}</td>
+                                    <td>{{ $disp['customer'] }}</td>
+                                    <td><span class="mw-status info">{{ $disp['status'] }}</span></td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="mw-empty">No dispatch records to display.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="mw-card">
+                <div class="mw-card-heading">
+                    <h3>Low Stock Products</h3>
+                    <a href="{{ route('inventory.index', ['filter' => 'low_stock']) }}">View all</a>
+                </div>
+                <div class="mw-table-wrap">
+                    <table class="mw-table">
+                        <thead>
+                            <tr><th>Product</th><th>Current Stock</th><th>Minimum Level</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($targetLowStock as $low)
+                                <tr>
+                                    <td>{{ $low['product'] }}</td>
+                                    <td>{{ $low['current_stock'] }}</td>
+                                    <td>{{ $low['min_level'] }}</td>
+                                    <td><span class="mw-status danger">Low</span></td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="mw-empty">No low-stock products to display.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+        </div>
+    </section>
+
+    {{-- Alerts and tools --}}
+    <section class="mw-bottom-grid">
+
+        <article class="mw-card">
+            <div class="mw-card-heading">
+                <h3>Alerts and Notifications</h3>
+                <a href="{{ route('alerts.index') }}">View all</a>
+            </div>
+            <div class="mw-alert-list">
+                @forelse ($targetAlerts as $alert)
+                    <div class="mw-alert-row">
+                        <span class="mw-alert-symbol {{ $alert['severity'] === 'danger' ? 'alert-danger' : 'alert-warning' }}">!</span>
+                        <div class="mw-alert-info">
+                            <strong>{{ $alert['title'] }}</strong>
+                            <a href="{{ $alert['link'] }}">View details</a>
+                        </div>
+                        <small>{{ $alert['time'] }}</small>
+                    </div>
+                @empty
+                    <p class="mw-empty">There are no alerts to display.</p>
+                @endforelse
+            </div>
+        </article>
+
+        <article class="mw-card">
+            <div class="mw-card-heading">
+                <h3>Quick Navigation</h3>
+            </div>
+            <div class="mw-quick-links">
+                <a href="{{ route('products.index') }}"><span>▦</span><div><strong>Products</strong><small>View product catalogue</small></div></a>
+                <a href="{{ route('inventory.index') }}"><span>▤</span><div><strong>Inventory Overview</strong><small>Review stock records</small></div></a>
+                <a href="{{ route('batches.index') }}"><span>▥</span><div><strong>Batch Records</strong><small>Review batch information</small></div></a>
+                <a href="{{ route('reports.index') }}"><span>▧</span><div><strong>Reports</strong><small>View warehouse reports</small></div></a>
+            </div>
+        </article>
+
+        <article class="mw-card">
+            <div class="mw-card-heading">
+                <h3>Download Reports</h3>
+                <a href="{{ route('reports.index') }}">View all</a>
+            </div>
+            <div class="mw-report-list">
+                @forelse ($downloadReports as $rep)
+                    <div class="mw-report-row">
+                        <strong>{{ $rep['title'] }}</strong>
+                        <div>
+                            <a class="mw-pdf" href="{{ route('reports.pdf', ['report' => $rep['key']]) }}">PDF</a>
+                            <a class="mw-csv" href="{{ route('reports.csv', ['report' => $rep['key']]) }}">CSV</a>
+                        </div>
+                    </div>
+                @empty
+                    <p class="mw-empty">No reports available.</p>
+                @endforelse
+            </div>
+        </article>
+
+    </section>
+
+</div>
 @endsection
 
 @push('scripts')
-    <style>
-        .dashboard-wrap {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            width: 100%;
-            max-width: 100%;
-        }
-
-        /* 1. Hero Welcome Banner */
-        .hero-banner {
-            border-radius: 12px;
-            overflow: hidden;
-            background-color: #0f172a;
-            background-image: linear-gradient(90deg, rgba(15, 23, 42, 0.94) 0%, rgba(15, 23, 42, 0.82) 55%, rgba(15, 23, 42, 0.92) 100%),
-                        url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1600&q=80');
-            background-position: center;
-            background-size: cover;
-            background-repeat: no-repeat;
-            color: #ffffff;
-            padding: 20px 24px;
-            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
-            width: 100%;
-        }
-
-        .hero-content {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-
-        .hero-title {
-            margin: 0 0 4px;
-            font-size: 24px;
-            font-weight: 800;
-            color: #ffffff;
-            letter-spacing: -0.02em;
-        }
-
-        .hero-subtitle {
-            margin: 0 0 12px;
-            font-size: 13px;
-            color: #cbd5e1;
-        }
-
-        .hero-badges {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(255, 255, 255, 0.12);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 9999px;
-            padding: 4px 10px;
-            font-size: 11.5px;
-            font-weight: 500;
-            color: #f8fafc;
-        }
-
-        .hero-widget {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 10px;
-            padding: 10px 16px;
-        }
-
-        .hero-location, .hero-weather {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .widget-head {
-            display: block;
-            font-size: 12px;
-            font-weight: 700;
-            color: #ffffff;
-            line-height: 1.2;
-        }
-
-        .widget-sub {
-            display: block;
-            font-size: 11px;
-            color: #94a3b8;
-            line-height: 1.2;
-        }
-
-        /* 2. Top KPI Cards Grid */
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 14px;
-            width: 100%;
-        }
-
-        .kpi-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 16px 18px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            text-decoration: none;
-            color: inherit;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-            transition: all 0.15s ease;
-        }
-
-        .kpi-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-            text-decoration: none;
-            border-color: #cbd5e1;
-        }
-
-        .kpi-icon-wrap {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .kpi-body {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .kpi-title {
-            font-size: 12.5px;
-            font-weight: 600;
-            color: #64748b;
-        }
-
-        .kpi-num {
-            font-size: 24px;
-            font-weight: 800;
-            color: #0f172a;
-            line-height: 1.15;
-            letter-spacing: -0.02em;
-        }
-
-        .kpi-caption {
-            font-size: 11.5px;
-            color: #94a3b8;
-        }
-
-        /* 3. Analytics Charts Grid */
-        .analytics-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-            width: 100%;
-        }
-
-        .chart-box {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 16px 18px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .chart-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 14px;
-            gap: 8px;
-        }
-
-        .chart-header h2 {
-            font-size: 14px;
-            font-weight: 700;
-            color: #0f172a;
-            margin: 0;
-            letter-spacing: -0.01em;
-        }
-
-        .chart-header h2 small {
-            font-size: 11.5px;
-            color: #94a3b8;
-            font-weight: 500;
-        }
-
-        .chart-header-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .movement-legend-inline {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 11px;
-            font-weight: 600;
-            color: #64748b;
-        }
-
-        .movement-legend-inline span {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .chart-select {
-            font-size: 11.5px;
-            padding: 3px 8px;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-            background: #f8fafc;
-            color: #475569;
-            cursor: pointer;
-        }
-
-        .doughnut-layout {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            flex: 1;
-        }
-
-        .doughnut-canvas-wrap {
-            position: relative;
-            width: 140px;
-            height: 140px;
-            flex-shrink: 0;
-            margin: auto;
-        }
-
-        .chart-center-label {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            text-align: center;
-        }
-
-        .center-val {
-            font-size: 15px;
-            font-weight: 800;
-            color: #0f172a;
-            line-height: 1.1;
-        }
-
-        .center-sub {
-            font-size: 10px;
-            color: #94a3b8;
-            text-transform: capitalize;
-        }
-
-        .chart-legend-list {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-            flex: 1;
-        }
-
-        .legend-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 11.5px;
-            color: #475569;
-        }
-
-        .legend-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 6px;
-            flex-shrink: 0;
-        }
-
-        .legend-name {
-            flex: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .legend-pct {
-            font-weight: 700;
-            color: #0f172a;
-            margin-left: 8px;
-        }
-
-        .line-layout {
-            height: 140px;
-            position: relative;
-            width: 100%;
-        }
-
-        /* 4. Main 2-Column Split */
-        .main-dashboard-columns {
-            display: grid;
-            grid-template-columns: 2.2fr 1fr;
-            gap: 14px;
-            align-items: start;
-            width: 100%;
-        }
-
-        .tables-column {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-
-        .tables-row-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-        }
-
-        .table-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 16px 18px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .table-card-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .table-card-head h2 {
-            font-size: 14px;
-            font-weight: 700;
-            color: #0f172a;
-            margin: 0;
-        }
-
-        .view-all-link {
-            font-size: 11.5px;
-            font-weight: 600;
-            color: #2563eb;
-            text-decoration: none;
-        }
-
-        .view-all-link:hover { text-decoration: underline; }
-
-        .clean-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .clean-table th {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: #94a3b8;
-            border-bottom: 1px solid #f1f5f9;
-            padding: 7px 8px;
-            text-align: left;
-            background: #ffffff;
-        }
-
-        .clean-table td {
-            font-size: 12px;
-            padding: 9px 8px;
-            border-bottom: 1px solid #f8fafc;
-            vertical-align: middle;
-        }
-
-        .clean-table tr:last-child td { border-bottom: 0; }
-
-        .product-cell {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .prod-thumb-mini {
-            width: 22px;
-            height: 22px;
-            border-radius: 4px;
-            background: #f1f5f9;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .prod-name-text {
-            font-weight: 600;
-            color: #1e293b;
-            font-size: 11.5px;
-            max-width: 130px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .badge {
-            display: inline-block;
-            font-size: 10.5px;
-            font-weight: 600;
-            padding: 2px 7px;
-            border-radius: 9999px;
-            text-align: center;
-            white-space: nowrap;
-        }
-
-        .badge-success { background: #dcfce7; color: #16a34a; }
-        .badge-info { background: #dbeafe; color: #2563eb; }
-        .badge-purple { background: #f3e8ff; color: #7c3aed; }
-        .badge-danger { background: #fee2e2; color: #dc2626; }
-
-        .location-pill {
-            display: inline-block;
-            background: #f1f5f9;
-            color: #475569;
-            font-size: 10.5px;
-            font-weight: 600;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-
-        .code-link {
-            font-weight: 600;
-            color: #2563eb;
-            font-size: 11.5px;
-            text-decoration: none;
-        }
-
-        .code-link:hover { text-decoration: underline; }
-
-        .text-muted { color: #94a3b8; font-size: 11.5px; }
-        .text-dark { color: #0f172a; }
-        .text-success { color: #16a34a; }
-        .text-slate { color: #475569; }
-        .font-bold { font-weight: 700; }
-        .font-medium { font-weight: 500; font-size: 11.5px; }
-        .text-nowrap { white-space: nowrap; }
-
-        /* Right Column Widgets */
-        .sidebar-column {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-
-        .widget-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 16px 18px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .widget-head-flex {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .widget-head-flex h2 {
-            font-size: 14px;
-            font-weight: 700;
-            color: #0f172a;
-            margin: 0;
-        }
-
-        .widget-title-iconic {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .alerts-stack {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .alert-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 4px 0;
-            border-bottom: 1px solid #f8fafc;
-        }
-
-        .alert-row:last-child { border-bottom: 0; }
-
-        .alert-icon-wrap {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .alert-warning { background: #ffedd5; color: #ea580c; }
-        .alert-danger { background: #fee2e2; color: #dc2626; }
-
-        .alert-content {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .alert-title-text {
-            font-size: 11.5px;
-            font-weight: 600;
-            color: #1e293b;
-            line-height: 1.3;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .alert-action-link {
-            font-size: 10.5px;
-            color: #2563eb;
-            text-decoration: none;
-        }
-
-        .alert-action-link:hover { text-decoration: underline; }
-
-        .alert-time {
-            font-size: 10.5px;
-            color: #94a3b8;
-            white-space: nowrap;
-        }
-
-        /* Quick Actions Grid */
-        .quick-actions-2x2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-
-        .action-tile {
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 10px 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
-            color: inherit;
-            background: #ffffff;
-            transition: all 0.15s ease;
-        }
-
-        .action-tile:hover {
-            border-color: #cbd5e1;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-            text-decoration: none;
-        }
-
-        .action-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .action-text {
-            display: flex;
-            flex-direction: column;
-            line-height: 1.2;
-        }
-
-        .action-text strong {
-            font-size: 11.5px;
-            color: #0f172a;
-        }
-
-        .action-text span {
-            font-size: 9.5px;
-            color: #94a3b8;
-        }
-
-        /* Download Reports List */
-        .reports-download-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .report-download-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 3px 0;
-            border-bottom: 1px solid #f8fafc;
-        }
-
-        .report-download-row:last-child { border-bottom: 0; }
-
-        .report-lead {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .report-name-label {
-            font-size: 11.5px;
-            font-weight: 600;
-            color: #1e293b;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .report-btns {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .btn-badge-pdf {
-            font-size: 9.5px;
-            font-weight: 700;
-            color: #ef4444;
-            background: #fee2e2;
-            padding: 2px 6px;
-            border-radius: 4px;
-            text-decoration: none;
-        }
-
-        .btn-badge-csv {
-            font-size: 9.5px;
-            font-weight: 700;
-            color: #2563eb;
-            background: #dbeafe;
-            padding: 2px 6px;
-            border-radius: 4px;
-            text-decoration: none;
-        }
-
-        .btn-badge-pdf:hover, .btn-badge-csv:hover { opacity: 0.85; text-decoration: none; }
-
-        /* Install App Card */
-        .install-app-card {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-        }
-
-        .install-card-lead {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .install-icon-wrap {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            background: #eff6ff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .install-text {
-            display: flex;
-            flex-direction: column;
-            line-height: 1.2;
-        }
-
-        .install-text strong {
-            font-size: 12px;
-            color: #0f172a;
-        }
-
-        .install-text span {
-            font-size: 10.5px;
-            color: #94a3b8;
-        }
-
-        .btn-install {
-            background: #eff6ff;
-            color: #2563eb;
-            border: 1px solid #bfdbfe;
-            border-radius: 6px;
-            font-size: 11.5px;
-            font-weight: 600;
-            padding: 5px 12px;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .btn-install:hover {
-            background: #2563eb;
-            color: #ffffff;
-        }
-
-        @media (max-width: 1200px) {
-            .analytics-grid { grid-template-columns: 1fr; }
-            .main-dashboard-columns { grid-template-columns: 1fr; }
-            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-
-        @media (max-width: 768px) {
-            .kpi-grid { grid-template-columns: 1fr; }
-            .tables-row-grid { grid-template-columns: 1fr; }
-            .hero-content { flex-direction: column; align-items: flex-start; }
-            .hero-widget { width: 100%; justify-content: space-between; }
-        }
-    </style>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-    <script>
-        let pwaInstallPrompt = null;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            pwaInstallPrompt = e;
-            const globalInstallBtn = document.getElementById('install-app');
-            if (globalInstallBtn) globalInstallBtn.removeAttribute('hidden');
+<style>
+.mw-dashboard{display:flex;flex-direction:column;gap:22px;color:#172033}
+.mw-hero{background:linear-gradient(120deg,#10243e,#174b70);border-radius:16px;padding:28px 32px;color:white;display:flex;justify-content:space-between;align-items:center;gap:20px;box-shadow:0 8px 24px #10243e18}
+.mw-eyebrow{font-size:10px;letter-spacing:2px;font-weight:800;color:#93c5fd}
+.mw-hero h1{font-size:26px;color:white;font-weight:800;margin:8px 0}
+.mw-hero p{color:#dbeafe;margin:0 0 16px;font-size:13px}
+.mw-hero-meta{display:flex;gap:18px;flex-wrap:wrap;color:#e2e8f0;font-size:12px}
+.mw-hero-location{display:flex;align-items:center;gap:12px;padding:14px 18px;border:1px solid #ffffff30;background:#ffffff12;border-radius:12px}
+.mw-location-icon{font-size:26px;color:#7dd3fc}
+.mw-hero-location strong,.mw-hero-location small{display:block}
+.mw-hero-location strong{font-size:13px}
+.mw-hero-location small{font-size:11px;color:#cbd5e1;margin-top:3px}
+.mw-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.mw-kpi{display:flex;align-items:center;gap:12px;background:white;border:1px solid #e5eaf1;border-radius:13px;padding:17px 14px;text-decoration:none;color:inherit;min-width:0;transition:.2s}
+.mw-kpi:hover{transform:translateY(-3px);box-shadow:0 8px 20px #17203312;border-color:#bfdbfe}
+.mw-kpi-icon{width:43px;height:43px;display:grid;place-items:center;border-radius:12px;font-size:23px;flex-shrink:0}
+.mw-kpi-icon.green{background:#dcfce7;color:#15803d}.mw-kpi-icon.orange{background:#ffedd5;color:#c2410c}.mw-kpi-icon.purple{background:#ede9fe;color:#6d28d9}.mw-kpi-icon.teal{background:#ccfbf1;color:#0f766e}.mw-kpi-icon.blue{background:#dbeafe;color:#1d4ed8}
+.mw-kpi small,.mw-kpi strong,.mw-kpi div>span{display:block}
+.mw-kpi small{font-size:11px;color:#64748b;font-weight:600}
+.mw-kpi strong{font-size:23px;margin:4px 0;color:#142238;line-height:1.2}
+.mw-kpi strong.mw-manage{font-size:15px;margin:8px 0}
+.mw-kpi div>span{font-size:10px;color:#94a3b8}
+.mw-section{display:flex;flex-direction:column;gap:12px}
+.mw-section-heading{display:flex;justify-content:space-between;align-items:center}
+.mw-section-heading h2{font-size:17px;font-weight:800;margin:0;color:#172033}
+.mw-section-heading p{font-size:11px;color:#8491a3;margin:4px 0 0}
+.mw-analytics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.mw-card{background:white;border:1px solid #e5eaf1;border-radius:13px;padding:18px;min-width:0;box-shadow:0 2px 7px #17203305}
+.mw-card-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:15px}
+.mw-card-heading h3{font-size:13px;font-weight:800;color:#172033;margin:0}
+.mw-card-heading p{font-size:10px;color:#94a3b8;margin:4px 0 0}
+.mw-card-heading>a{font-size:11px;color:#2563eb;text-decoration:none;font-weight:700;white-space:nowrap}
+.mw-card-heading>a:hover{text-decoration:underline}
+.mw-donut-area{display:flex;align-items:center;gap:14px;min-height:155px}
+.mw-donut{width:140px;height:140px;position:relative;flex-shrink:0}
+.mw-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.mw-donut-center strong{font-size:17px;color:#172033}
+.mw-donut-center small{font-size:9px;color:#94a3b8}
+.mw-legend{display:flex;flex-direction:column;gap:9px;min-width:0;flex:1}
+.mw-legend-row{display:flex;align-items:center;gap:7px;font-size:10px;color:#64748b}
+.mw-legend-row strong{margin-left:auto;color:#172033}
+.mw-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.mw-movement-legend{display:flex;gap:14px;font-size:10px;color:#64748b;margin-bottom:8px}
+.mw-movement-legend span{display:flex;align-items:center;gap:5px}
+.mw-line-chart{height:145px;position:relative}
+.mw-record-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.mw-table-wrap{width:100%;overflow-x:auto}
+.mw-table{width:100%;border-collapse:collapse;white-space:nowrap}
+.mw-table th{text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;padding:9px 8px;border-bottom:1px solid #edf1f5}
+.mw-table td{font-size:10px;color:#475569;padding:11px 8px;border-bottom:1px solid #f1f4f8}
+.mw-table tr:last-child td{border-bottom:0}
+.mw-status{display:inline-block;padding:4px 8px;border-radius:20px;font-size:9px;font-weight:700}
+.mw-status.success{background:#dcfce7;color:#15803d}.mw-status.info{background:#dbeafe;color:#1d4ed8}.mw-status.purple{background:#f3e8ff;color:#7e22ce}.mw-status.danger{background:#fee2e2;color:#b91c1c}
+.mw-bottom-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px;align-items:start}
+.mw-alert-list,.mw-quick-links,.mw-report-list{display:flex;flex-direction:column}
+.mw-alert-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f1f4f8}
+.mw-alert-row:last-child{border:0}
+.mw-alert-symbol{width:27px;height:27px;display:grid;place-items:center;border-radius:50%;font-weight:800;flex-shrink:0}
+.mw-alert-symbol.alert-danger{background:#fee2e2;color:#dc2626}.mw-alert-symbol.alert-warning{background:#ffedd5;color:#c2410c}
+.mw-alert-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.mw-alert-info strong{font-size:10px;color:#334155}
+.mw-alert-info a{font-size:10px;color:#2563eb;text-decoration:none}
+.mw-alert-row>small{font-size:9px;color:#94a3b8;white-space:nowrap}
+.mw-quick-links a{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid #f1f4f8;text-decoration:none}
+.mw-quick-links a:last-child{border:0}
+.mw-quick-links a>span{width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:#eff6ff;color:#2563eb;font-size:18px}
+.mw-quick-links strong,.mw-quick-links small{display:block}
+.mw-quick-links strong{font-size:11px;color:#334155}
+.mw-quick-links small{font-size:9px;color:#94a3b8;margin-top:3px}
+.mw-report-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid #f1f4f8}
+.mw-report-row:last-child{border:0}
+.mw-report-row>strong{font-size:10px;color:#475569}
+.mw-report-row>div{display:flex;gap:5px}
+.mw-report-row a{font-size:9px;font-weight:800;text-decoration:none;padding:5px 7px;border-radius:5px}
+.mw-pdf{background:#fee2e2;color:#b91c1c}.mw-csv{background:#dbeafe;color:#1d4ed8}
+.mw-empty{font-size:11px;color:#94a3b8;text-align:center;padding:18px 8px}
+@media(max-width:1300px){.mw-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.mw-analytics{grid-template-columns:1fr 1fr}.mw-analytics .mw-card:last-child{grid-column:span 2}}
+@media(max-width:950px){.mw-bottom-grid{grid-template-columns:1fr 1fr}.mw-bottom-grid .mw-card:first-child{grid-column:span 2}}
+@media(max-width:700px){.mw-hero{align-items:flex-start;flex-direction:column;padding:22px}.mw-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-analytics,.mw-record-grid{grid-template-columns:1fr}.mw-analytics .mw-card:last-child{grid-column:auto}.mw-bottom-grid{grid-template-columns:1fr}.mw-bottom-grid .mw-card:first-child{grid-column:auto}}
+@media(max-width:430px){.mw-kpis{grid-template-columns:1fr}.mw-hero h1{font-size:21px}.mw-donut-area{flex-wrap:wrap;justify-content:center}.mw-legend{width:100%;flex-basis:100%}}
+
+/* ===== DASHBOARD CHART AND LAYOUT FIX ===== */
+
+.mw-dashboard,
+.mw-dashboard * {
+    box-sizing: border-box;
+}
+
+.mw-dashboard {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.mw-analytics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
+    align-items: stretch;
+}
+
+.mw-analytics > .mw-card,
+.mw-record-grid > .mw-card,
+.mw-bottom-grid > .mw-card {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.mw-donut-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
+    min-height: 180px;
+}
+
+.mw-donut {
+    position: relative;
+    width: 155px;
+    height: 155px;
+    min-width: 155px;
+    max-width: 155px;
+    flex: 0 0 155px;
+    overflow: hidden;
+}
+
+.mw-donut canvas {
+    position: absolute !important;
+    inset: 0;
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.mw-donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.mw-legend {
+    flex: 1 1 100px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.mw-movement-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    margin-bottom: 12px;
+}
+
+.mw-line-chart {
+    position: relative;
+    width: 100%;
+    height: 210px;
+    min-height: 210px;
+    max-height: 210px;
+    overflow: hidden;
+}
+
+.mw-line-chart canvas {
+    position: absolute !important;
+    inset: 0;
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.mw-record-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
+}
+
+.mw-bottom-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
+}
+
+.mw-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+@media (max-width: 1100px) {
+    .mw-analytics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mw-analytics > .mw-card:last-child {
+        grid-column: 1 / -1;
+    }
+
+    .mw-bottom-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .mw-analytics,
+    .mw-record-grid,
+    .mw-bottom-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .mw-analytics > .mw-card:last-child {
+        grid-column: auto;
+    }
+
+    .mw-donut-area {
+        flex-wrap: wrap;
+    }
+
+    .mw-legend {
+        flex-basis: 100%;
+    }
+}
+
+/* ===== END DASHBOARD CHART FIX ===== */
+
+
+/* FINAL HARD LIMITS FOR DASHBOARD CHARTS */
+
+.mw-dashboard .mw-analytics {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-items: start !important;
+}
+
+.mw-dashboard .mw-analytics .mw-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+}
+
+.mw-dashboard .mw-donut-area {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 170px !important;
+    max-height: 190px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+}
+
+.mw-dashboard .mw-donut {
+    position: relative !important;
+    display: block !important;
+    width: 155px !important;
+    height: 155px !important;
+    min-width: 155px !important;
+    max-width: 155px !important;
+    flex: 0 0 155px !important;
+    overflow: hidden !important;
+}
+
+.mw-dashboard #categoryDonutChart,
+.mw-dashboard #expiryDonutChart {
+    position: absolute !important;
+    display: block !important;
+    inset: 0 !important;
+    width: 155px !important;
+    height: 155px !important;
+    min-width: 155px !important;
+    max-width: 155px !important;
+    min-height: 155px !important;
+    max-height: 155px !important;
+}
+
+.mw-dashboard .mw-donut-center {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 155px !important;
+    height: 155px !important;
+    pointer-events: none !important;
+}
+
+.mw-dashboard .mw-line-chart {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    height: 210px !important;
+    min-height: 210px !important;
+    max-height: 210px !important;
+    overflow: hidden !important;
+}
+
+.mw-dashboard #stockMovementChart {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 210px !important;
+    max-height: 210px !important;
+}
+
+@media (max-width: 1100px) {
+    .mw-dashboard .mw-analytics {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 700px) {
+    .mw-dashboard .mw-analytics {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* END FINAL CHART LIMITS */
+
+
+/* FINAL HARD LIMITS FOR DASHBOARD CHARTS */
+
+.mw-dashboard .mw-analytics {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-items: start !important;
+}
+
+.mw-dashboard .mw-analytics .mw-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+}
+
+.mw-dashboard .mw-donut-area {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 170px !important;
+    max-height: 190px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+}
+
+.mw-dashboard .mw-donut {
+    position: relative !important;
+    display: block !important;
+    width: 155px !important;
+    height: 155px !important;
+    min-width: 155px !important;
+    max-width: 155px !important;
+    flex: 0 0 155px !important;
+    overflow: hidden !important;
+}
+
+.mw-dashboard #categoryDonutChart,
+.mw-dashboard #expiryDonutChart {
+    position: absolute !important;
+    display: block !important;
+    inset: 0 !important;
+    width: 155px !important;
+    height: 155px !important;
+    min-width: 155px !important;
+    max-width: 155px !important;
+    min-height: 155px !important;
+    max-height: 155px !important;
+}
+
+.mw-dashboard .mw-donut-center {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 155px !important;
+    height: 155px !important;
+    pointer-events: none !important;
+}
+
+.mw-dashboard .mw-line-chart {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    height: 210px !important;
+    min-height: 210px !important;
+    max-height: 210px !important;
+    overflow: hidden !important;
+}
+
+.mw-dashboard #stockMovementChart {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 210px !important;
+    max-height: 210px !important;
+}
+
+@media (max-width: 1100px) {
+    .mw-dashboard .mw-analytics {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 700px) {
+    .mw-dashboard .mw-analytics {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* END FINAL CHART LIMITS */
+
+</style>
+@endpush
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (!window.Chart) return;
+
+    const categoryCanvas = document.getElementById('categoryDonutChart');
+    if (categoryCanvas) {
+        new Chart(categoryCanvas, {
+            type: 'doughnut',
+            data: {
+                labels: @json(collect($categoryBreakdown)->pluck('name')),
+                datasets: [{
+                    data: @json(collect($categoryBreakdown)->pluck('quantity')),
+                    backgroundColor: @json(collect($categoryBreakdown)->pluck('color')),
+                    borderWidth: 0,
+                    hoverOffset: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '72%',
+                plugins: { legend: { display: false } }
+            }
         });
+    }
 
-        window.triggerPwaInstall = async function() {
-            if (pwaInstallPrompt) {
-                pwaInstallPrompt.prompt();
-                const choice = await pwaInstallPrompt.userChoice;
-                if (choice.outcome === 'accepted') {
-                    pwaInstallPrompt = null;
+    const movementCanvas = document.getElementById('stockMovementChart');
+    if (movementCanvas) {
+        new Chart(movementCanvas, {
+            type: 'line',
+            data: {
+                labels: @json($stockMovement7Days['labels']),
+                datasets: [
+                    {
+                        label: 'Received',
+                        data: @json($stockMovement7Days['received']),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16,185,129,.10)',
+                        fill: false,
+                        tension: .35,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Issued',
+                        data: @json($stockMovement7Days['issued']),
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37,99,235,.08)',
+                        fill: false,
+                        tension: .35,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Put-away',
+                        data: @json($stockMovement7Days['put_away']),
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245,158,11,.08)',
+                        fill: false,
+                        tension: .35,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Transferred',
+                        data: @json($stockMovement7Days['transferred']),
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139,92,246,.08)',
+                        fill: false,
+                        tension: .35,
+                        pointRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                    y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', font: { size: 9 } } }
                 }
-            } else {
-                alert('Mukwano WIMS is progressive-web-app ready. You can install it from your browser address bar icon or menu.');
-            }
-        };
-
-        window.addEventListener('DOMContentLoaded', () => {
-            if (!window.Chart) return;
-
-            // 1. Stock by Category Donut Chart
-            const catCtx = document.getElementById('categoryDonutChart');
-            if (catCtx) {
-                const catLabels = @json(collect($categoryBreakdown)->pluck('name'));
-                const catData = @json(collect($categoryBreakdown)->pluck('quantity'));
-                const catColors = @json(collect($categoryBreakdown)->pluck('color'));
-
-                new Chart(catCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: catLabels,
-                        datasets: [{
-                            data: catData,
-                            backgroundColor: catColors,
-                            borderWidth: 0,
-                            hoverOffset: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        cutout: '72%',
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(ctx) {
-                                        return ' ' + ctx.label + ': ' + Number(ctx.raw).toLocaleString() + ' units';
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-
-            // 2. Stock Movement Last 7 Days Area Chart
-            const movCtx = document.getElementById('stockMovementChart');
-            if (movCtx) {
-                const movLabels = @json($stockMovement7Days['labels']);
-                const recData = @json($stockMovement7Days['received']);
-                const issData = @json($stockMovement7Days['issued']);
-
-                new Chart(movCtx, {
-                    type: 'line',
-                    data: {
-                        labels: movLabels,
-                        datasets: [
-                            {
-                                label: 'Received',
-                                data: recData,
-                                borderColor: '#10b981',
-                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                fill: true,
-                                tension: 0.35,
-                                pointRadius: 3,
-                                pointHoverRadius: 5
-                            },
-                            {
-                                label: 'Issued',
-                                data: issData,
-                                borderColor: '#2563eb',
-                                backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                                fill: true,
-                                tension: 0.35,
-                                pointRadius: 3,
-                                pointHoverRadius: 5
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: {
-                            legend: { display: false }
-                        },
-                        scales: {
-                            x: {
-                                grid: { display: false },
-                                ticks: { font: { size: 10 }, color: '#94a3b8' }
-                            },
-                            y: {
-                                beginAtZero: true,
-                                grid: { color: '#f1f5f9' },
-                                ticks: { font: { size: 10 }, color: '#94a3b8' }
-                            }
-                        }
-                    }
-                });
-            }
-
-            // 3. Expiry Status Donut Chart
-            const expCtx = document.getElementById('expiryDonutChart');
-            if (expCtx) {
-                const expLabels = @json(collect($expiryBreakdown)->pluck('label'));
-                const expData = @json(collect($expiryBreakdown)->pluck('quantity'));
-                const expColors = @json(collect($expiryBreakdown)->pluck('color'));
-
-                new Chart(expCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: expLabels,
-                        datasets: [{
-                            data: expData,
-                            backgroundColor: expColors,
-                            borderWidth: 0,
-                            hoverOffset: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        cutout: '72%',
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(ctx) {
-                                        return ' ' + ctx.label + ': ' + Number(ctx.raw).toLocaleString() + ' batches';
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
             }
         });
-    </script>
+    }
+
+    const expiryCanvas = document.getElementById('expiryDonutChart');
+    if (expiryCanvas) {
+        new Chart(expiryCanvas, {
+            type: 'doughnut',
+            data: {
+                labels: @json(collect($expiryBreakdown)->pluck('label')),
+                datasets: [{
+                    data: @json(collect($expiryBreakdown)->pluck('quantity')),
+                    backgroundColor: @json(collect($expiryBreakdown)->pluck('color')),
+                    borderWidth: 0,
+                    hoverOffset: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '72%',
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+});
+</script>
 @endpush

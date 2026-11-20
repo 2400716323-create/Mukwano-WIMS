@@ -1,5 +1,5 @@
 <?php
 
 return [
-    'completed_phase' => 2,
+    'completed_phase' => 12,
 ];

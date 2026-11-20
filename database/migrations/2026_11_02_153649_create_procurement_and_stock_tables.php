@@ -1,3 +1,4 @@
+
 <?php
 
 use Illuminate\Database\Migrations\Migration;
@@ -44,7 +45,7 @@ return new class extends Migration
             $table->string('status', 16)->default('confirmed')->index();
             $table->text('notes')->nullable();
             $table->timestamp('received_at');
-            $table->timestamp('confirmed_at');
+            $table->timestamp('confirmed_at')->nullable();
             $table->timestamps();
             $table->index(['supplier_id', 'received_at']);
             $table->index(['purchase_order_id', 'received_at']);

@@ -1,3 +1,4 @@
+
 @extends('catalog.layout')
 
 @section('title', 'Stock count SC-'.$stockCount->id)
@@ -213,11 +214,27 @@
                 @endforeach
                 </tbody>
             </table>
+
             @if ($canSubmit)
-                <div style="padding: 16px 20px; display: flex; justify-content: flex-end; border-top: 1px solid #f1f5f9;">
-                    <button type="submit" class="button" style="background: #2563eb; color: #ffffff; padding: 8px 20px; font-weight: 600;">
+                <div style="padding: 16px 20px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #f1f5f9;">
+
+                    <button
+                        type="submit"
+                        class="button"
+                        formaction="{{ route('stock-counts.save-draft', $stockCount) }}"
+                        formnovalidate
+                        data-skip-offline-queue="true"
+                        style="background: #e2e8f0; color: #1e293b; padding: 8px 20px; font-weight: 600;">
+                        Save Draft
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="button"
+                        style="background: #2563eb; color: #ffffff; padding: 8px 20px; font-weight: 600;">
                         Submit count for approval
                     </button>
+
                 </div>
             @endif
         </form>

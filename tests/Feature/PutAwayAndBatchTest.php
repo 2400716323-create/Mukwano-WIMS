@@ -9,8 +9,10 @@ use App\Models\Location;
 use App\Models\Product;
 use App\Models\StockBalance;
 use App\Models\User;
+use App\Services\InventoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class PutAwayAndBatchTest extends TestCase
@@ -106,23 +108,181 @@ class PutAwayAndBatchTest extends TestCase
             ])
             ->assertRedirect(route('inventory.index'));
 
-        // Check source balance was reduced
         $this->assertSame('5.000', $balance->fresh()->quantity);
 
-        // Check destination balance was created
         $destBalance = StockBalance::query()
             ->where('batch_id', $batch->id)
             ->where('location_id', $destBin->id)
             ->firstOrFail();
+
         $this->assertSame('15.000', $destBalance->quantity);
 
-        // Check movement audit record
         $this->assertDatabaseHas('stock_movements', [
             'batch_id' => $batch->id,
             'from_location_id' => $sourceBin->id,
             'to_location_id' => $destBin->id,
             'movement_type' => 'put_away',
             'quantity' => '15.000',
+        ]);
+    }
+
+    public function test_expired_stock_cannot_be_put_away(): void
+    {
+        $user = User::factory()->create(['role' => User::ROLE_STOREKEEPER]);
+        $category = Category::factory()->create();
+        $product = Product::factory()->create(['category_id' => $category->id]);
+
+        $warehouse = Location::query()->create([
+            'name' => 'Expiry Warehouse',
+            'code' => 'WH-EXP-01',
+            'type' => 'warehouse',
+            'status' => 'active',
+        ]);
+
+        $zone = Location::query()->create([
+            'parent_id' => $warehouse->id,
+            'name' => 'Expiry Zone',
+            'code' => 'ZN-EXP-01',
+            'type' => 'zone',
+            'status' => 'active',
+        ]);
+
+        $rack = Location::query()->create([
+            'parent_id' => $zone->id,
+            'name' => 'Expiry Rack',
+            'code' => 'RK-EXP-01',
+            'type' => 'rack',
+            'status' => 'active',
+        ]);
+
+        $source = Location::query()->create([
+            'parent_id' => $rack->id,
+            'name' => 'Receiving Bin',
+            'code' => 'RCV-EXP-01',
+            'type' => 'bin',
+            'status' => 'active',
+        ]);
+
+        $destination = Location::query()->create([
+            'parent_id' => $rack->id,
+            'name' => 'Storage Bin',
+            'code' => 'BIN-EXP-01',
+            'type' => 'bin',
+            'status' => 'active',
+        ]);
+
+        $batch = Batch::query()->create([
+            'product_id' => $product->id,
+            'batch_number' => 'EXPIRED-PUT-01',
+            'expires_at' => today()->subDay(),
+        ]);
+
+        $balance = StockBalance::query()->create([
+            'batch_id' => $batch->id,
+            'location_id' => $source->id,
+            'quantity' => '20.000',
+        ]);
+
+        try {
+            app(InventoryService::class)->putAway(
+                $balance,
+                $destination,
+                '10.000',
+                $user,
+                (string) Str::uuid(),
+            );
+
+            $this->fail('Expired stock should not be put away.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('quantity', $exception->errors());
+        }
+
+        $this->assertSame('20.000', $balance->fresh()->quantity);
+
+        $this->assertDatabaseMissing('stock_movements', [
+            'batch_id' => $batch->id,
+            'movement_type' => 'put_away',
+        ]);
+    }
+
+    public function test_expired_stock_cannot_be_transferred(): void
+    {
+        $user = User::factory()->create(['role' => User::ROLE_STOREKEEPER]);
+        $category = Category::factory()->create();
+        $product = Product::factory()->create(['category_id' => $category->id]);
+
+        $warehouse = Location::query()->create([
+            'name' => 'Transfer Warehouse',
+            'code' => 'WH-EXP-02',
+            'type' => 'warehouse',
+            'status' => 'active',
+        ]);
+
+        $zone = Location::query()->create([
+            'parent_id' => $warehouse->id,
+            'name' => 'Transfer Zone',
+            'code' => 'ZN-EXP-02',
+            'type' => 'zone',
+            'status' => 'active',
+        ]);
+
+        $rack = Location::query()->create([
+            'parent_id' => $zone->id,
+            'name' => 'Transfer Rack',
+            'code' => 'RK-EXP-02',
+            'type' => 'rack',
+            'status' => 'active',
+        ]);
+
+        $source = Location::query()->create([
+            'parent_id' => $rack->id,
+            'name' => 'Source Storage',
+            'code' => 'BIN-EXP-02A',
+            'type' => 'bin',
+            'status' => 'active',
+        ]);
+
+        $destination = Location::query()->create([
+            'parent_id' => $rack->id,
+            'name' => 'Destination Storage',
+            'code' => 'BIN-EXP-02B',
+            'type' => 'bin',
+            'status' => 'active',
+        ]);
+
+        $batch = Batch::query()->create([
+            'product_id' => $product->id,
+            'batch_number' => 'EXPIRED-TRANSFER-01',
+            'expires_at' => today()->subDay(),
+        ]);
+
+        $balance = StockBalance::query()->create([
+            'batch_id' => $batch->id,
+            'location_id' => $source->id,
+            'quantity' => '20.000',
+        ]);
+
+        try {
+            app(InventoryService::class)->transfer(
+                $balance,
+                $destination,
+                '10.000',
+                'Test transfer',
+                $user,
+                now(),
+                (string) Str::uuid(),
+            );
+
+            $this->fail('Expired stock should not be transferred.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('quantity', $exception->errors());
+        }
+
+        $this->assertSame('20.000', $balance->fresh()->quantity);
+
+        $this->assertDatabaseMissing('stock_movements', [
+            'batch_id' => $batch->id,
+            'movement_type' => 'transfer',
         ]);
     }
 
@@ -146,7 +306,6 @@ class PutAwayAndBatchTest extends TestCase
             'expires_at' => today()->subDays(5),
         ]);
 
-        // Access index and filter
         $this->actingAs($auditor)
             ->get(route('batches.index', ['search' => 'EXP-SOON']))
             ->assertOk()
@@ -158,7 +317,6 @@ class PutAwayAndBatchTest extends TestCase
             ->assertOk()
             ->assertSee('EXP-PAST-01');
 
-        // Access batch details
         $this->actingAs($auditor)
             ->get(route('batches.show', $batchNearExpiry))
             ->assertOk()

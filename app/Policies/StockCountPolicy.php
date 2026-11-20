@@ -9,44 +9,42 @@ class StockCountPolicy
 {
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, [
-            User::ROLE_ADMINISTRATOR,
-            User::ROLE_WAREHOUSE_MANAGER,
-            User::ROLE_STOREKEEPER,
-            User::ROLE_AUDITOR,
-        ], true);
+        return $user->hasPermission('Create and approve cycle counts and adjust variances')
+            || $user->hasPermission('Execute cycle count recording and blind counts')
+            || $user->hasPermission('View cycle count reports, variances, and review history');
     }
 
     public function view(User $user, StockCount $stockCount): bool
     {
-        return in_array($user->role, [
-            User::ROLE_ADMINISTRATOR,
-            User::ROLE_WAREHOUSE_MANAGER,
-            User::ROLE_STOREKEEPER,
-            User::ROLE_AUDITOR,
-        ], true);
+        return $this->viewAny($user);
     }
 
     public function create(User $user): bool
     {
-        return in_array($user->role, [
-            User::ROLE_ADMINISTRATOR,
-            User::ROLE_WAREHOUSE_MANAGER,
-            User::ROLE_STOREKEEPER,
-        ], true);
+        return $user->hasPermission('Create and approve cycle counts and adjust variances')
+            || $user->hasPermission('Execute cycle count recording and blind counts');
     }
 
     public function submit(User $user, StockCount $stockCount): bool
     {
-        return in_array($user->role, [
-            User::ROLE_ADMINISTRATOR,
-            User::ROLE_WAREHOUSE_MANAGER,
-            User::ROLE_STOREKEEPER,
-        ], true) && $stockCount->status === 'draft';
+        return $stockCount->status === 'draft'
+            && $this->create($user);
+    }
+
+    public function update(User $user, StockCount $stockCount): bool
+    {
+        return $stockCount->status === 'draft'
+            && $this->create($user);
     }
 
     public function review(User $user, StockCount $stockCount): bool
     {
-        return ($user->isAdministrator() || $user->isWarehouseManager()) && $stockCount->status === 'submitted';
+        return $stockCount->status === 'submitted'
+            && $user->isSupervisor();
+    }
+
+    public function manageSettings(User $user): bool
+    {
+        return $user->hasPermission('Manage cycle-count variance and accuracy thresholds');
     }
 }

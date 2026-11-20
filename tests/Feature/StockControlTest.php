@@ -288,21 +288,25 @@ class StockControlTest extends TestCase
 
     public function test_stock_overview_enquiry_ledger_and_transfer_pages_render_and_filter(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->warehouseManager()->create());
         [$product, $batch, $source, $destination, $balance] = $this->createStock('5.000');
+
         $this->get(route('inventory.index'))
             ->assertOk()
             ->assertSee($product->sku)
             ->assertSee($batch->batch_number)
             ->assertSee('Stock overview by product');
+
         $this->get(route('inventory.enquiry', ['product_id' => $product->id]))
             ->assertOk()
             ->assertSee($source->code)
             ->assertSee('Opening Balance');
+
         $this->get(route('inventory.ledger', ['batch_id' => $batch->id, 'location_id' => $source->id]))
             ->assertOk()
             ->assertSee($batch->batch_number)
             ->assertSee($source->code);
+
         $this->get(route('stock-transfers.create'))
             ->assertOk()
             ->assertSee($destination->code)
@@ -316,6 +320,7 @@ class StockControlTest extends TestCase
         $this->get(route('inventory.enquiry'))->assertRedirect(route('login'));
         $this->get(route('inventory.ledger'))->assertRedirect(route('login'));
         $this->get(route('stock-transfers.create'))->assertRedirect(route('login'));
+
         $this->post(route('stock-transfers.store', $balance), [
             'destination_location_id' => $destination->id,
             'quantity' => '1.000',

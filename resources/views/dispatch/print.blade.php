@@ -57,7 +57,7 @@
             </div>
         </div>
 
-        <h1 style="font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 18px 0; text-transform: uppercase; letter-spacing: 0.04em;">Goods Delivery Note</h1>
+        <h2 style="font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 18px 0; text-transform: uppercase; letter-spacing: 0.04em;">Goods Delivery Note</h2>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
             <div>

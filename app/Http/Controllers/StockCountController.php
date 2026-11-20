@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CreateStockCountRequest;
 use App\Http\Requests\ReviewStockCountRequest;
+use App\Http\Requests\SaveStockCountDraftRequest;
 use App\Http\Requests\SubmitStockCountRequest;
 use App\Http\Requests\UpdateInventorySettingsRequest;
 use App\Models\Batch;
@@ -21,15 +22,21 @@ class StockCountController extends Controller
     public function index(StockCountService $stockCountService): View
     {
         $this->authorize('viewAny', StockCount::class);
+
         $stockCounts = StockCount::query()
             ->with('location', 'product', 'batch', 'creator', 'reviewer', 'lines')
             ->withCount('lines')
             ->latest()
             ->paginate(20);
+
         $inventorySetting = InventorySetting::current();
+
         $accuracyByCount = $stockCounts->getCollection()
             ->mapWithKeys(fn (StockCount $stockCount): array => [
-                $stockCount->id => $stockCountService->accuracyUsingLoadedLines($stockCount->lines, $inventorySetting),
+                $stockCount->id => $stockCountService->accuracyUsingLoadedLines(
+                    $stockCount->lines,
+                    $inventorySetting,
+                ),
             ]);
 
         $metrics = [
@@ -39,7 +46,11 @@ class StockCountController extends Controller
             'in_progress' => StockCount::query()->where('status', 'draft')->count(),
         ];
 
-        return view('stock-counts.index', compact('stockCounts', 'accuracyByCount', 'metrics'));
+        return view('stock-counts.index', compact(
+            'stockCounts',
+            'accuracyByCount',
+            'metrics'
+        ));
     }
 
     public function create(): View
@@ -54,14 +65,27 @@ class StockCountController extends Controller
                 ->get()
                 ->filter(fn (Location $location): bool => $location->isOperational())
                 ->values(),
-            'products' => Product::query()->where('status', 'active')->orderBy('name')->get(),
-            'batches' => Batch::query()->with('product')->orderBy('batch_number')->get(),
+
+            'products' => Product::query()
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(),
+
+            'batches' => Batch::query()
+                ->with('product')
+                ->orderBy('batch_number')
+                ->get(),
         ]);
     }
 
-    public function store(CreateStockCountRequest $request, StockCountService $stockCountService): RedirectResponse
-    {
+    public function store(
+        CreateStockCountRequest $request,
+        StockCountService $stockCountService,
+    ): RedirectResponse {
+        $this->authorize('create', StockCount::class);
+
         $attributes = $request->validated();
+
         $stockCount = $stockCountService->create(
             Location::query()->findOrFail($attributes['location_id']),
             isset($attributes['product_id']) ? (int) $attributes['product_id'] : null,
@@ -71,12 +95,18 @@ class StockCountController extends Controller
         );
 
         return to_route('stock-counts.show', $stockCount)
-            ->with('status', 'Count list created. Stock will not change until a supervisor approves it.');
+            ->with(
+                'status',
+                'Count list created. Stock will not change until a supervisor approves it.'
+            );
     }
 
-    public function show(StockCount $stockCount, StockCountService $stockCountService): View
-    {
+    public function show(
+        StockCount $stockCount,
+        StockCountService $stockCountService,
+    ): View {
         $this->authorize('view', $stockCount);
+
         $stockCount->load(
             'location',
             'product',
@@ -89,6 +119,7 @@ class StockCountController extends Controller
             'lines.counter',
             'reviews.supervisor',
         );
+
         $accuracy = $stockCountService->accuracyUsingLoadedLines(
             $stockCount->lines,
             InventorySetting::current(),
@@ -103,15 +134,44 @@ class StockCountController extends Controller
         ]);
     }
 
+    public function saveDraft(
+        SaveStockCountDraftRequest $request,
+        StockCount $stockCount,
+        StockCountService $stockCountService,
+    ): RedirectResponse {
+        $this->authorize('update', $stockCount);
+
+        $stockCountService->saveDraft(
+            $stockCount,
+            $request->validated()['lines'] ?? [],
+            $request->user(),
+        );
+
+        return to_route('stock-counts.show', $stockCount)
+            ->with(
+                'status',
+                'Draft count saved successfully. Stock has not been changed.'
+            );
+    }
+
     public function submit(
         SubmitStockCountRequest $request,
         StockCount $stockCount,
         StockCountService $stockCountService,
     ): RedirectResponse {
-        $stockCountService->submit($stockCount, $request->validated()['lines'], $request->user());
+        $this->authorize('submit', $stockCount);
+
+        $stockCountService->submit(
+            $stockCount,
+            $request->validated()['lines'],
+            $request->user(),
+        );
 
         return to_route('stock-counts.show', $stockCount)
-            ->with('status', 'Count submitted for supervisor approval. Stock has not been changed.');
+            ->with(
+                'status',
+                'Count submitted for supervisor approval. Stock has not been changed.'
+            );
     }
 
     public function review(
@@ -119,7 +179,10 @@ class StockCountController extends Controller
         StockCount $stockCount,
         StockCountService $stockCountService,
     ): RedirectResponse {
+        $this->authorize('review', $stockCount);
+
         $attributes = $request->validated();
+
         $stockCountService->review(
             $stockCount,
             $attributes['decision'],
@@ -128,14 +191,17 @@ class StockCountController extends Controller
         );
 
         return to_route('stock-counts.show', $stockCount)
-            ->with('status', $attributes['decision'] === 'approved'
-                ? 'Count approved and stock adjustments posted.'
-                : 'Count rejected. No stock was changed.');
+            ->with(
+                'status',
+                $attributes['decision'] === 'approved'
+                    ? 'Count approved and stock adjustments posted.'
+                    : 'Count rejected. No stock was changed.'
+            );
     }
 
     public function settings(): View
     {
-        abort_unless(request()->user()->isSupervisor(), 403);
+        $this->authorize('manageSettings', StockCount::class);
 
         return view('stock-counts.settings', [
             'inventorySetting' => InventorySetting::current(),
@@ -146,19 +212,25 @@ class StockCountController extends Controller
         UpdateInventorySettingsRequest $request,
         AuditService $auditService,
     ): RedirectResponse {
+        $this->authorize('manageSettings', StockCount::class);
+
         $inventorySetting = InventorySetting::current();
+
         $oldValues = $inventorySetting->only([
             'variance_threshold_percent',
             'accuracy_tolerance_percent',
         ]);
+
         $inventorySetting->fill($request->validated());
         $inventorySetting->updated_by = $request->user()->id;
         $inventorySetting->save();
+
         $auditService->record($inventorySetting, 'updated', $oldValues, [
             'variance_threshold_percent' => $inventorySetting->variance_threshold_percent,
             'accuracy_tolerance_percent' => $inventorySetting->accuracy_tolerance_percent,
         ]);
 
-        return to_route('stock-counts.settings')->with('status', 'Inventory accuracy settings updated.');
+        return to_route('stock-counts.settings')
+            ->with('status', 'Inventory accuracy settings updated.');
     }
 }

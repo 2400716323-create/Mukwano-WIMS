@@ -64,10 +64,19 @@ class Location extends Model
     public function childType(): ?string
     {
         return match ($this->type) {
-            'warehouse' => 'zone',
             'zone' => 'rack',
             'rack' => 'bin',
             default => null,
+        };
+    }
+
+    public function childTypes(): array
+    {
+        return match ($this->type) {
+            'warehouse' => ['zone', 'receiving', 'staging'],
+            'zone' => ['rack'],
+            'rack' => ['bin'],
+            default => [],
         };
     }
 }

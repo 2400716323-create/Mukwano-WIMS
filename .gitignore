@@ -25,3 +25,18 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Environment and private configuration
+.env.*
+!.env.example
+
+# Temporary backup files
+*.backup
+*.before-*
+*.damaged-copy
+* copy.php
+
+# Temporary development files
+*.tmp
+*.swp
+*.blade.php.backup*

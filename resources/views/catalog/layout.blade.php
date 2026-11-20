@@ -931,6 +931,13 @@
                     Dashboard
                 </a>
 
+                @if(auth()->user()->hasRole(['administrator', 'warehouse_manager', 'storekeeper']))
+                    <a href="{{ route('stock-keeper.index') }}" class="nav-item {{ request()->routeIs('stock-keeper.*') ? 'active' : '' }}">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18v13H3z"></path><path d="M7 7V4h10v3"></path><path d="M8 12h8M8 16h5"></path></svg>
+                        Stock Keeper Workspace
+                    </a>
+                @endif
+
                 @if(auth()->user()->hasRole(['administrator', 'warehouse_manager', 'storekeeper', 'dispatch_officer']))
                     <a href="{{ route('qr.scan') }}" class="nav-item {{ request()->routeIs('qr.scan') ? 'active' : '' }}">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10"></rect></svg>
@@ -966,6 +973,15 @@
                             Purchase Orders
                         </a>
                     @endif
+                    @if(auth()->user()->hasRole(['administrator', 'warehouse_manager', 'procurement_officer']))
+                        <a href="{{ route('procurement-communications.index') }}"
+                           class="nav-item {{ request()->routeIs('procurement-communications.*') ? 'active' : '' }}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"></path>
+                            </svg>
+                            Procurement Communication
+                        </a>
+                    @endif
                     <a href="{{ route('goods-receipts.index') }}" class="nav-item {{ request()->routeIs('goods-receipts.*') ? 'active' : '' }}">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         Goods Receiving
@@ -996,7 +1012,6 @@
                             <a href="{{ route('inventory.ledger') }}" class="nav-item {{ request()->routeIs('inventory.ledger') ? 'active' : '' }}">Movement Ledger</a>
                         @endif
                         @if(auth()->user()->hasRole(['administrator', 'warehouse_manager', 'storekeeper']))
-                            <a href="{{ route('put-away.index') }}" class="nav-item {{ request()->routeIs('put-away.*') ? 'active' : '' }}">Put-away Tasks</a>
                             <a href="{{ route('stock-transfers.create') }}" class="nav-item {{ request()->routeIs('stock-transfers.*') ? 'active' : '' }}">Stock Transfers</a>
                             <a href="{{ route('locations.index') }}" class="nav-item {{ request()->routeIs('locations.*') ? 'active' : '' }}">Warehouse Locations</a>
                         @endif
@@ -1004,7 +1019,7 @@
                 </details>
 
                 <!-- Outbound & Dispatch -->
-                @if(auth()->user()->hasRole(['administrator', 'warehouse_manager', 'dispatch_officer', 'auditor']))
+                @if(auth()->user()->hasRole(['administrator', 'warehouse_manager', 'dispatch_officer', 'storekeeper', 'auditor']))
                     <div class="nav-section-title">Outbound</div>
                     <a href="{{ route('dispatch-requests.index') }}" class="nav-item {{ request()->routeIs('dispatch-requests.*') ? 'active' : '' }}">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
@@ -1012,12 +1027,6 @@
                     </a>
                 @endif
 
-                @if(auth()->user()->hasRole(['administrator', 'warehouse_manager', 'storekeeper']))
-                    <a href="{{ route('stock-transfers.create') }}" class="nav-item {{ request()->routeIs('stock-transfers.*') ? 'active' : '' }}">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
-                        Transfers
-                    </a>
-                @endif
 
                 <!-- Audit & Verification -->
                 @if(auth()->user()->hasRole(['administrator', 'warehouse_manager', 'storekeeper', 'auditor']))
@@ -1044,12 +1053,30 @@
                     $unresolvedAlertsCount = \Illuminate\Support\Facades\Schema::hasTable('alerts')
                         ? \App\Models\Alert::query()->where('condition_active', true)->whereNull('resolved_at')->count()
                         : 0;
+
+                    $unreadNotificationsCount = auth()->user()->unreadNotifications()->count();
                 @endphp
                 <a href="{{ route('alerts.index') }}" class="nav-item {{ request()->routeIs('alerts.*') ? 'active' : '' }}">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
                     <span style="flex: 1;">Alerts</span>
                     @if ($unresolvedAlertsCount > 0)
                         <span style="background: #ef4444; color: white; font-size: 10px; font-weight: 700; border-radius: 9999px; padding: 1px 7px; min-width: 18px; text-align: center;">{{ $unresolvedAlertsCount }}</span>
+                    @endif
+                </a>
+
+                <a href="{{ route('notifications.index') }}"
+                   class="nav-item {{ request()->routeIs('notifications.*') ? 'active' : '' }}">
+                    <svg width="18" height="18" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <span style="flex:1;">Notifications</span>
+
+                    @if ($unreadNotificationsCount > 0)
+                        <span style="background:#2563eb;color:white;font-size:10px;font-weight:700;border-radius:9999px;padding:1px 7px;">
+                            {{ $unreadNotificationsCount > 99 ? '99+' : $unreadNotificationsCount }}
+                        </span>
                     @endif
                 </a>
 
@@ -1116,11 +1143,21 @@
                         <span>Install app</span>
                     </button>
 
-                    <!-- Notification Bell with Red Badge -->
-                    <a href="{{ route('alerts.index') }}" class="notification-btn" aria-label="Alerts">
-                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-                        @if ($unresolvedAlertsCount > 0)
-                            <span class="notification-badge">{{ $unresolvedAlertsCount }}</span>
+                    <!-- Notification Bell -->
+                    <a href="{{ route('notifications.index') }}"
+                       class="notification-btn"
+                       aria-label="Notifications"
+                       title="Notifications">
+                        <svg width="19" height="19" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+
+                        @if ($unreadNotificationsCount > 0)
+                            <span class="notification-badge">
+                                {{ $unreadNotificationsCount > 99 ? '99+' : $unreadNotificationsCount }}
+                            </span>
                         @endif
                     </a>
 

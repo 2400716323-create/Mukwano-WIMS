@@ -8,6 +8,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -21,7 +22,8 @@ class CatalogManagementTest extends TestCase
         $this->get(route('products.index'))->assertRedirect(route('login'));
         $this->get(route('suppliers.index'))->assertRedirect(route('login'));
 
-        $this->actingAs(User::factory()->create())
+        // Storekeepers can view the product catalogue.
+        $this->actingAs(User::factory()->storekeeper()->create())
             ->get(route('products.index'))
             ->assertOk()
             ->assertSee('Products');
@@ -29,7 +31,7 @@ class CatalogManagementTest extends TestCase
 
     public function test_category_crud_search_product_count_and_audit_logging(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
 
         $this->post(route('categories.store'), [
             'name' => 'Electrical',
@@ -37,7 +39,9 @@ class CatalogManagementTest extends TestCase
         ])->assertRedirect(route('categories.index'));
 
         $category = Category::query()->where('name', 'Electrical')->firstOrFail();
-        $product = Product::factory()->create(['category_id' => $category->id]);
+        $product = Product::factory()->create([
+            'category_id' => $category->getKey(),
+        ]);
 
         $this->get(route('categories.index', ['search' => 'Electrical']))
             ->assertOk()
@@ -50,72 +54,117 @@ class CatalogManagementTest extends TestCase
         ])->assertRedirect(route('categories.index'));
 
         $this->assertDatabaseHas('categories', [
-            'id' => $category->id,
+            'id' => $category->getKey(),
             'name' => 'Electrical supplies',
         ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Category::class,
-            'auditable_id' => $category->id,
+            'auditable_id' => $category->getKey(),
             'event' => 'created',
         ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Category::class,
-            'auditable_id' => $category->id,
+            'auditable_id' => $category->getKey(),
             'event' => 'updated',
         ]);
-        $this->assertDatabaseHas('products', ['id' => $product->id, 'category_id' => $category->id]);
+
+        $this->assertDatabaseHas('products', [
+            'id' => $product->getKey(),
+            'category_id' => $category->getKey(),
+        ]);
     }
 
     public function test_category_cannot_be_deactivated_or_deleted_with_products_without_reassignment(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
+
         $category = Category::factory()->create();
         $target = Category::factory()->create();
-        $product = Product::factory()->create(['category_id' => $category->id]);
+
+        $product = Product::factory()->create([
+            'category_id' => $category->getKey(),
+        ]);
 
         $this->patch(route('categories.deactivate', $category))
             ->assertSessionHasErrors('reassign_to');
+
         $this->assertSame('active', $category->fresh()->status);
 
         $this->delete(route('categories.destroy', $category))
             ->assertSessionHasErrors('reassign_to');
-        $this->assertDatabaseHas('categories', ['id' => $category->id]);
 
-        $this->patch(route('categories.deactivate', $category), ['reassign_to' => $target->id])
-            ->assertRedirect(route('categories.index'));
-        $this->assertDatabaseHas('products', ['id' => $product->id, 'category_id' => $target->id]);
-        $this->assertDatabaseHas('categories', ['id' => $category->id, 'status' => 'inactive']);
+        $this->assertDatabaseHas('categories', [
+            'id' => $category->getKey(),
+        ]);
+
+        $this->patch(route('categories.deactivate', $category), [
+            'reassign_to' => $target->getKey(),
+        ])->assertRedirect(route('categories.index'));
+
+        $this->assertDatabaseHas('products', [
+            'id' => $product->getKey(),
+            'category_id' => $target->getKey(),
+        ]);
+
+        $this->assertDatabaseHas('categories', [
+            'id' => $category->getKey(),
+            'status' => 'inactive',
+        ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Product::class,
-            'auditable_id' => $product->id,
+            'auditable_id' => $product->getKey(),
             'event' => 'category_reassigned',
         ]);
 
         $this->delete(route('categories.destroy', $category))
             ->assertRedirect(route('categories.index'));
-        $this->assertDatabaseMissing('categories', ['id' => $category->id]);
+
+        $this->assertDatabaseMissing('categories', [
+            'id' => $category->getKey(),
+        ]);
     }
 
     public function test_reassignment_target_must_be_another_active_category(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
+
         $category = Category::factory()->create();
-        $product = Product::factory()->create(['category_id' => $category->id]);
-        $inactive = Category::factory()->create(['status' => 'inactive']);
 
-        $this->patch(route('categories.deactivate', $category), ['reassign_to' => $category->id])
-            ->assertSessionHasErrors('reassign_to');
-        $this->patch(route('categories.deactivate', $category), ['reassign_to' => $inactive->id])
-            ->assertSessionHasErrors('reassign_to');
+        $product = Product::factory()->create([
+            'category_id' => $category->getKey(),
+        ]);
 
-        $this->assertDatabaseHas('products', ['id' => $product->id, 'category_id' => $category->id]);
+        $inactive = Category::factory()->create([
+            'status' => 'inactive',
+        ]);
+
+        $this->patch(route('categories.deactivate', $category), [
+            'reassign_to' => $category->getKey(),
+        ])->assertSessionHasErrors('reassign_to');
+
+        $this->patch(route('categories.deactivate', $category), [
+            'reassign_to' => $inactive->getKey(),
+        ])->assertSessionHasErrors('reassign_to');
+
+        $this->assertDatabaseHas('products', [
+            'id' => $product->getKey(),
+            'category_id' => $category->getKey(),
+        ]);
     }
 
     public function test_products_validate_unique_skus_and_threshold_order(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
+
         $category = Category::factory()->create();
-        Product::factory()->create(['sku' => 'DUP-1', 'category_id' => $category->id]);
+
+        Product::factory()->create([
+            'sku' => 'DUP-1',
+            'category_id' => $category->getKey(),
+        ]);
 
         $this->post(route('products.store'), $this->productData($category, [
             'sku' => 'DUP-1',
@@ -128,28 +177,33 @@ class CatalogManagementTest extends TestCase
             'max_level' => 20,
         ]))->assertSessionHasErrors('min_level');
 
-        $this->assertDatabaseMissing('products', ['sku' => 'LEVEL-1']);
+        $this->assertDatabaseMissing('products', [
+            'sku' => 'LEVEL-1',
+        ]);
     }
 
     public function test_product_search_filters_sorting_and_deactivation_keep_the_product_record(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
+
         $category = Category::factory()->create();
         $anotherCategory = Category::factory()->create();
+
         $product = Product::factory()->create([
             'sku' => 'FILTER-1',
             'name' => 'Copper Wire',
-            'category_id' => $category->id,
+            'category_id' => $category->getKey(),
         ]);
+
         Product::factory()->create([
             'sku' => 'FILTER-2',
             'name' => 'Steel Rod',
-            'category_id' => $anotherCategory->id,
+            'category_id' => $anotherCategory->getKey(),
         ]);
 
         $this->get(route('products.index', [
             'search' => 'Copper',
-            'category_id' => $category->id,
+            'category_id' => $category->getKey(),
             'status' => 'active',
             'sort' => 'category',
         ]))
@@ -159,25 +213,32 @@ class CatalogManagementTest extends TestCase
 
         $this->patch(route('products.deactivate', $product))
             ->assertRedirect(route('products.index'));
-        $this->assertDatabaseHas('products', ['id' => $product->id, 'status' => 'inactive']);
+
+        $this->assertDatabaseHas('products', [
+            'id' => $product->getKey(),
+            'status' => 'inactive',
+        ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Product::class,
-            'auditable_id' => $product->id,
+            'auditable_id' => $product->getKey(),
             'event' => 'deactivated',
         ]);
-        $this->delete('/products/'.$product->id)->assertStatus(405);
+
+        $this->delete('/products/'.$product->getKey())->assertStatus(405);
     }
 
     public function test_product_listing_sorts_columns_and_paginates_results(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->storekeeper()->create());
+
         $category = Category::factory()->create();
 
         for ($number = 1; $number <= 16; $number++) {
             Product::factory()->create([
                 'sku' => sprintf('PAGE-%02d', $number),
                 'name' => sprintf('Paged item %02d', $number),
-                'category_id' => $category->id,
+                'category_id' => $category->getKey(),
             ]);
         }
 
@@ -212,7 +273,9 @@ class CatalogManagementTest extends TestCase
     public function test_product_image_upload_replace_remove_and_invalid_content_rules(): void
     {
         Storage::fake('public');
-        $this->actingAs(User::factory()->create());
+
+        $this->actingAs(User::factory()->administrator()->create());
+
         $category = Category::factory()->create();
 
         $this->post(route('products.store'), $this->productData($category, [
@@ -222,9 +285,16 @@ class CatalogManagementTest extends TestCase
 
         $product = Product::query()->where('sku', 'IMAGE-1')->firstOrFail();
         $originalImagePath = $product->image_path;
+
         $this->assertNotSame('original.png', basename($originalImagePath));
-        Storage::disk('public')->assertExists($originalImagePath);
-        $this->get(route('products.image', ['filename' => basename($originalImagePath)]))
+
+        $this->assertTrue(
+            Storage::disk('public')->exists($originalImagePath)
+        );
+
+        $this->get(route('products.image', [
+            'filename' => basename($originalImagePath),
+        ]))
             ->assertOk()
             ->assertHeader('content-type', 'image/png');
 
@@ -234,9 +304,16 @@ class CatalogManagementTest extends TestCase
         ]))->assertRedirect();
 
         $replacementImagePath = $product->fresh()->image_path;
+
         $this->assertNotSame($originalImagePath, $replacementImagePath);
-        Storage::disk('public')->assertMissing($originalImagePath);
-        Storage::disk('public')->assertExists($replacementImagePath);
+
+        $this->assertFalse(
+            Storage::disk('public')->exists($originalImagePath)
+        );
+
+        $this->assertTrue(
+            Storage::disk('public')->exists($replacementImagePath)
+        );
 
         $this->put(route('products.update', $product), $this->productData($category, [
             'sku' => 'IMAGE-1',
@@ -244,16 +321,25 @@ class CatalogManagementTest extends TestCase
         ]))->assertRedirect();
 
         $this->assertNull($product->fresh()->image_path);
-        Storage::disk('public')->assertMissing($replacementImagePath);
+
+        $this->assertFalse(
+            Storage::disk('public')->exists($replacementImagePath)
+        );
 
         $this->post(route('products.store'), $this->productData($category, [
             'sku' => 'BAD-IMAGE',
-            'image' => UploadedFile::fake()->createWithContent('not-an-image.png', 'plain text, not image data'),
+            'image' => UploadedFile::fake()->createWithContent(
+                'not-an-image.png',
+                'plain text, not image data'
+            ),
         ]))->assertSessionHasErrors('image');
 
         $this->post(route('products.store'), $this->productData($category, [
             'sku' => 'BAD-TYPE',
-            'image' => UploadedFile::fake()->createWithContent('document.txt', 'plain text, not image data'),
+            'image' => UploadedFile::fake()->createWithContent(
+                'document.txt',
+                'plain text, not image data'
+            ),
         ]))->assertSessionHasErrors('image');
 
         $this->assertDatabaseMissing('products', ['sku' => 'BAD-IMAGE']);
@@ -262,18 +348,24 @@ class CatalogManagementTest extends TestCase
 
     public function test_oversized_product_image_is_rejected(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
+
         $category = Category::factory()->create();
 
         $this->post(route('products.store'), $this->productData($category, [
             'sku' => 'TOO-LARGE',
-            'image' => UploadedFile::fake()->create('oversized.jpg', 5121, 'image/jpeg'),
+            'image' => UploadedFile::fake()->create(
+                'oversized.jpg',
+                5121,
+                'image/jpeg'
+            ),
         ]))->assertSessionHasErrors('image');
     }
 
     public function test_supplier_crud_search_status_and_audit_logging(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
+
         $payload = [
             'name' => 'Acme Metals',
             'code' => 'ACME-1',
@@ -286,8 +378,13 @@ class CatalogManagementTest extends TestCase
         ];
 
         $this->post(route('suppliers.store'), $payload)->assertRedirect();
+
         $supplier = Supplier::query()->where('code', 'ACME-1')->firstOrFail();
-        $this->get(route('suppliers.index', ['search' => 'Amina', 'status' => 'active']))
+
+        $this->get(route('suppliers.index', [
+            'search' => 'Amina',
+            'status' => 'active',
+        ]))
             ->assertOk()
             ->assertSee('Acme Metals');
 
@@ -296,37 +393,54 @@ class CatalogManagementTest extends TestCase
             'name' => 'Acme Steel',
         ])->assertRedirect(route('suppliers.show', $supplier));
 
-        $this->patch(route('suppliers.deactivate', $supplier))->assertRedirect(route('suppliers.index'));
-        $this->assertDatabaseHas('suppliers', ['id' => $supplier->id, 'name' => 'Acme Steel', 'status' => 'inactive']);
+        $this->patch(route('suppliers.deactivate', $supplier))
+            ->assertRedirect(route('suppliers.index'));
+
+        $this->assertDatabaseHas('suppliers', [
+            'id' => $supplier->getKey(),
+            'name' => 'Acme Steel',
+            'status' => 'inactive',
+        ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Supplier::class,
-            'auditable_id' => $supplier->id,
+            'auditable_id' => $supplier->getKey(),
             'event' => 'created',
         ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Supplier::class,
-            'auditable_id' => $supplier->id,
+            'auditable_id' => $supplier->getKey(),
             'event' => 'updated',
         ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Supplier::class,
-            'auditable_id' => $supplier->id,
+            'auditable_id' => $supplier->getKey(),
             'event' => 'deactivated',
         ]);
 
-        $this->delete(route('suppliers.destroy', $supplier))->assertRedirect(route('suppliers.index'));
-        $this->assertDatabaseMissing('suppliers', ['id' => $supplier->id]);
+        $this->delete(route('suppliers.destroy', $supplier))
+            ->assertRedirect(route('suppliers.index'));
+
+        $this->assertDatabaseMissing('suppliers', [
+            'id' => $supplier->getKey(),
+        ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Supplier::class,
-            'auditable_id' => $supplier->id,
+            'auditable_id' => $supplier->getKey(),
             'event' => 'deleted',
         ]);
     }
 
     public function test_supplier_code_and_email_are_validated(): void
     {
-        $this->actingAs(User::factory()->create());
-        Supplier::factory()->create(['code' => 'DUP-SUP']);
+        $this->actingAs(User::factory()->administrator()->create());
+
+        Supplier::factory()->create([
+            'code' => 'DUP-SUP',
+        ]);
 
         $this->post(route('suppliers.store'), [
             'name' => 'Another supplier',
@@ -338,8 +452,10 @@ class CatalogManagementTest extends TestCase
 
     public function test_product_csv_import_and_export(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
+
         $category = Category::factory()->create();
+
         $csv = implode(',', [
             'sku',
             'sap_material_number',
@@ -352,13 +468,32 @@ class CatalogManagementTest extends TestCase
             'max_level',
             'status',
         ])."\n";
-        $csv .= implode(',', ['CSV-1', 'SAP-1', 'CSV Product', 'A useful item', $category->id, 'each', 1, 2, 5, 'active'])."\n";
+
+        $csv .= implode(',', [
+            'CSV-1',
+            'SAP-1',
+            'CSV Product',
+            'A useful item',
+            $category->getKey(),
+            'each',
+            1,
+            2,
+            5,
+            'active',
+        ])."\n";
 
         $response = $this->post(route('products.import'), [
-            'file' => UploadedFile::fake()->createWithContent('products.csv', $csv),
+            'file' => UploadedFile::fake()->createWithContent(
+                'products.csv',
+                $csv
+            ),
         ])->assertOk();
+
         $importId = $response->viewData('import_id');
-        $this->assertDatabaseMissing('products', ['sku' => 'CSV-1']);
+
+        $this->assertDatabaseMissing('products', [
+            'sku' => 'CSV-1',
+        ]);
 
         $this->post(route('erp-exchange.products.validate', $importId), [
             'mapping' => [
@@ -381,67 +516,105 @@ class CatalogManagementTest extends TestCase
         $this->assertDatabaseHas('products', [
             'sku' => 'CSV-1',
             'sap_material_number' => 'SAP-1',
-            'category_id' => $category->id,
+            'category_id' => $category->getKey(),
         ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'auditable_type' => Product::class,
             'event' => 'imported',
         ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'csv_imported',
-            'user_id' => auth()->id(),
+            'user_id' => Auth::id(),
         ]);
 
         $this->get(route('products.export'))
             ->assertOk()
             ->assertHeader('content-type', 'text/csv; charset=UTF-8')
             ->assertDownload();
+
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'csv_exported',
-            'user_id' => auth()->id(),
+            'user_id' => Auth::id(),
             'new_values->resource' => 'products',
         ]);
     }
 
     public function test_product_csv_import_rejects_duplicate_and_invalid_rows(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->administrator()->create());
+
         $category = Category::factory()->create();
+
         $header = 'sku,sap_material_number,name,description,category_id,unit,min_level,reorder_level,max_level,status';
-        $row = implode(',', ['DUP-CSV', '', 'CSV Product', '', $category->id, 'each', 1, 2, 5, 'active']);
+
+        $row = implode(',', [
+            'DUP-CSV',
+            '',
+            'CSV Product',
+            '',
+            $category->getKey(),
+            'each',
+            1,
+            2,
+            5,
+            'active',
+        ]);
 
         $importId = $this->post(route('products.import'), [
-            'file' => UploadedFile::fake()->createWithContent('products.csv', $header."\n".$row."\n".$row),
+            'file' => UploadedFile::fake()->createWithContent(
+                'products.csv',
+                $header."\n".$row."\n".$row
+            ),
         ])->assertOk()->viewData('import_id');
 
-        $duplicateReview = $this->post(route('erp-exchange.products.validate', $importId), [
-            'mapping' => [
-                'sku' => 'sku',
-                'sap_material_number' => 'sap_material_number',
-                'name' => 'name',
-                'description' => 'description',
-                'category_id' => 'category_id',
-                'unit' => 'unit',
-                'min_level' => 'min_level',
-                'reorder_level' => 'reorder_level',
-                'max_level' => 'max_level',
-                'status' => 'status',
-            ],
-        ])->assertOk();
-        $this->assertNotEmpty($duplicateReview->viewData('staged')['validated_rows'][0]['errors']);
+        $duplicateReview = $this->post(
+            route('erp-exchange.products.validate', $importId),
+            [
+                'mapping' => [
+                    'sku' => 'sku',
+                    'sap_material_number' => 'sap_material_number',
+                    'name' => 'name',
+                    'description' => 'description',
+                    'category_id' => 'category_id',
+                    'unit' => 'unit',
+                    'min_level' => 'min_level',
+                    'reorder_level' => 'reorder_level',
+                    'max_level' => 'max_level',
+                    'status' => 'status',
+                ],
+            ]
+        )->assertOk();
+
+        $this->assertNotEmpty(
+            $duplicateReview->viewData('staged')['validated_rows'][0]['errors']
+        );
 
         $invalidHeaderImport = $this->post(route('products.import'), [
-            'file' => UploadedFile::fake()->createWithContent('wrong.csv', 'sku,name'."\n".'SKU,Name'),
+            'file' => UploadedFile::fake()->createWithContent(
+                'wrong.csv',
+                'sku,name'."\n".'SKU,Name'
+            ),
         ])->assertOk()->viewData('import_id');
-        $this->post(route('erp-exchange.products.validate', $invalidHeaderImport), [
-            'mapping' => ['sku' => 'sku', 'name' => 'name'],
-        ])->assertSessionHasErrors('mapping.sap_material_number');
 
-        $this->assertDatabaseMissing('products', ['sku' => 'DUP-CSV']);
+        $this->post(
+            route('erp-exchange.products.validate', $invalidHeaderImport),
+            [
+                'mapping' => [
+                    'sku' => 'sku',
+                    'name' => 'name',
+                ],
+            ]
+        )->assertSessionHasErrors('mapping.sap_material_number');
+
+        $this->assertDatabaseMissing('products', [
+            'sku' => 'DUP-CSV',
+        ]);
     }
 
     /**
-     * @param  array<string, mixed>  $overrides
+     * @param array<string, mixed> $overrides
      * @return array<string, mixed>
      */
     private function productData(Category $category, array $overrides = []): array
@@ -451,7 +624,7 @@ class CatalogManagementTest extends TestCase
             'sap_material_number' => null,
             'name' => 'Test product',
             'description' => 'Test product description',
-            'category_id' => $category->id,
+            'category_id' => $category->getKey(),
             'unit' => 'each',
             'min_level' => 1,
             'reorder_level' => 2,
@@ -463,9 +636,16 @@ class CatalogManagementTest extends TestCase
 
     private function tinyPng(string $filename): UploadedFile
     {
-        $imageData = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXssAAAAASUVORK5CYII=', true);
+        $imageData = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXssAAAAASUVORK5CYII=',
+            true
+        );
+
         self::assertIsString($imageData);
 
-        return UploadedFile::fake()->createWithContent($filename, $imageData);
+        return UploadedFile::fake()->createWithContent(
+            $filename,
+            $imageData
+        );
     }
 }

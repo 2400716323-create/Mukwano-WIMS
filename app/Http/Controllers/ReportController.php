@@ -18,14 +18,19 @@ class ReportController extends Controller
 {
     public function index(ReportService $reportService): View
     {
-        $this->authorize('viewAny', Location::class);
+        $this->authorizeReports();
 
-        return view('reports.index', ['reports' => $reportService->availableReports()]);
+        return view('reports.index', [
+            'reports' => $reportService->availableReports(),
+        ]);
     }
 
-    public function show(Request $request, string $report, ReportService $reportService): View
-    {
-        $this->authorize('viewAny', Location::class);
+    public function show(
+        Request $request,
+        string $report,
+        ReportService $reportService
+    ): View {
+        $this->authorizeReports();
         $this->ensureValidReport($report, $reportService);
         $filters = $this->filters($request);
 
@@ -45,11 +50,12 @@ class ReportController extends Controller
         ReportService $reportService,
         AuditService $auditService,
     ): StreamedResponse {
-        $this->authorize('viewAny', Location::class);
+        $this->authorizeReports();
         $this->ensureValidReport($report, $reportService);
         $filters = $this->filters($request);
         $data = $reportService->report($report, $filters);
         $filename = $report.'-'.now()->format('Ymd-His').'.csv';
+
         $auditService->recordActivity('csv_exported', null, [], [
             'resource' => $report,
             'row_count' => $data['totals']['rows'],
@@ -59,18 +65,23 @@ class ReportController extends Controller
 
         return response()->streamDownload(function () use ($data): void {
             $output = fopen('php://output', 'w');
+
             fputcsv($output, array_values($data['columns']), ',', '"', '');
+
             foreach ($data['rows'] as $row) {
                 fputcsv($output, array_map(
                     fn (string $key): string => $this->safeCsvValue((string) ($row[$key] ?? '')),
                     array_keys($data['columns']),
                 ), ',', '"', '');
             }
+
             $totalRow = array_fill_keys(array_keys($data['columns']), '');
             $firstColumn = array_key_first($data['columns']);
+
             if ($firstColumn !== null) {
                 $totalRow[$firstColumn] = 'TOTAL ('.$data['totals']['rows'].' rows)';
             }
+
             foreach ([
                 'quantity' => 'quantity',
                 'on_hand' => 'quantity',
@@ -86,10 +97,12 @@ class ReportController extends Controller
                     $totalRow[$column] = $data['totals'][$total];
                 }
             }
+
             if (isset($data['columns']['matched'], $data['totals']['matched'])) {
                 $totalRow['matched'] = $data['totals']['matched'].' matched; '
                     .$data['totals']['mismatched'].' mismatched';
             }
+
             fputcsv($output, array_values($totalRow), ',', '"', '');
             fclose($output);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
@@ -101,7 +114,7 @@ class ReportController extends Controller
         ReportService $reportService,
         ReportPdfService $pdfService,
     ): StreamedResponse {
-        $this->authorize('viewAny', Location::class);
+        $this->authorizeReports();
         $this->ensureValidReport($report, $reportService);
         $filters = $this->filters($request);
         $data = $reportService->report($report, $filters);
@@ -112,6 +125,20 @@ class ReportController extends Controller
             static fn () => print $pdf,
             $filename,
             ['Content-Type' => 'application/pdf'],
+        );
+    }
+
+    private function authorizeReports(): void
+    {
+        $user = request()->user();
+
+        abort_unless(
+            $user !== null && (
+                $user->hasPermission('View and export all analytical reports and ERP exchanges')
+                || $user->hasPermission('View and export stock ledger, enquiry, and operational reports')
+                || $user->hasPermission('Export analytical reports (PDF, CSV)')
+            ),
+            403
         );
     }
 
@@ -137,7 +164,6 @@ class ReportController extends Controller
                     'requested',
                     'dispatched',
                     'submitted',
-                    'approved',
                     'rejected',
                 ]),
             ],

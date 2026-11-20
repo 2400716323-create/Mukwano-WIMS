@@ -2,24 +2,27 @@
 
 namespace App\Http\Requests;
 
-use App\Models\StockCount;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ReviewStockCountRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $stockCount = $this->route('stockCount');
-
-        return $stockCount instanceof StockCount
-            && ($this->user()?->can('review', $stockCount) ?? false);
+        // Authorization is handled by StockCountController
+        // using the StockCount policy.
+        return true;
     }
 
     public function rules(): array
     {
         return [
             'decision' => ['required', 'in:approved,rejected'],
-            'reason' => ['required_if:decision,rejected', 'nullable', 'string', 'max:2000'],
+            'reason' => [
+                'required_if:decision,rejected',
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ];
     }
 }

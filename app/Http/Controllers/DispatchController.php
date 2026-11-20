@@ -15,6 +15,7 @@ class DispatchController extends Controller
     public function index(): View
     {
         $this->authorize('viewAny', DispatchRequestModel::class);
+
         $dispatchRequests = DispatchRequestModel::query()
             ->with('product', 'requester', 'dispatcher')
             ->withCount('lines')
@@ -36,13 +37,17 @@ class DispatchController extends Controller
         $this->authorize('create', DispatchRequestModel::class);
 
         return view('dispatch.create', [
-            'products' => Product::query()->where('status', 'active')->orderBy('name')->get(),
+            'products' => Product::query()
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
     public function store(CreateDispatchRequest $request): RedirectResponse
     {
         $attributes = $request->validated();
+
         $dispatchRequest = DispatchRequestModel::query()->create([
             'product_id' => $attributes['product_id'],
             'requested_quantity' => $attributes['quantity'],
@@ -50,21 +55,27 @@ class DispatchController extends Controller
             'requested_at' => now(),
         ]);
 
-        return to_route('dispatch-requests.pick-list', $dispatchRequest)
-            ->with('status', 'Dispatch request created. Review the FEFO pick list before posting.');
+        if ($request->user()->can('pickList', $dispatchRequest)) {
+            return to_route('dispatch-requests.pick-list', $dispatchRequest)
+                ->with('status', 'Dispatch request created. Review the FEFO pick list before posting.');
+        }
+
+        return to_route('dispatch-requests.index')
+            ->with('status', 'Dispatch request created successfully.');
     }
 
     public function pickList(
         DispatchRequestModel $dispatchRequest,
         FefoPickingService $fefoPickingService,
     ): View|RedirectResponse {
-        $this->authorize('view', $dispatchRequest);
+        $this->authorize('pickList', $dispatchRequest);
 
         if ($dispatchRequest->status === 'dispatched') {
             return to_route('dispatch-requests.print', $dispatchRequest);
         }
 
         $dispatchRequest->load('product', 'requester');
+
         $proposal = $fefoPickingService->propose(
             $dispatchRequest->product_id,
             $dispatchRequest->requested_quantity,
@@ -83,6 +94,7 @@ class DispatchController extends Controller
         FefoPickingService $fefoPickingService,
     ): RedirectResponse {
         $attributes = $request->validated();
+
         $postedDispatch = $fefoPickingService->post(
             $dispatchRequest,
             $attributes['picks'],
@@ -96,9 +108,17 @@ class DispatchController extends Controller
 
     public function print(DispatchRequestModel $dispatchRequest): View
     {
-        $this->authorize('view', $dispatchRequest);
+        $this->authorize('print', $dispatchRequest);
+
         abort_unless($dispatchRequest->status === 'dispatched', 404);
-        $dispatchRequest->load('product', 'requester', 'dispatcher', 'lines.batch', 'lines.location');
+
+        $dispatchRequest->load(
+            'product',
+            'requester',
+            'dispatcher',
+            'lines.batch',
+            'lines.location'
+        );
 
         return view('dispatch.print', compact('dispatchRequest'));
     }

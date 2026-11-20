@@ -49,10 +49,12 @@ class InventoryService
 
                 $purchaseOrder = null;
                 $previousPurchaseOrderStatus = null;
+
                 if (! empty($receiptData['purchase_order_id'])) {
                     $purchaseOrder = PurchaseOrder::query()
                         ->lockForUpdate()
                         ->findOrFail($receiptData['purchase_order_id']);
+
                     $previousPurchaseOrderStatus = $purchaseOrder->status;
 
                     if (! in_array($purchaseOrder->status, [
@@ -75,6 +77,7 @@ class InventoryService
                     'received_at' => now(),
                     'confirmed_at' => now(),
                 ]);
+
                 $receipt->update([
                     'receipt_number' => 'GRN-'.now()->format('Y').'-'.str_pad((string) $receipt->id, 6, '0', STR_PAD_LEFT),
                 ]);
@@ -86,10 +89,15 @@ class InventoryService
 
                 foreach ($receiptData['lines'] as $index => $lineData) {
                     $product = Product::query()->lockForUpdate()->findOrFail($lineData['product_id']);
-                    $location = Location::query()->lockForUpdate()->findOrFail($lineData['location_id']);
-                    $this->ensureOperationalBin($location, $index);
+
+                    $location = Location::query()
+                        ->lockForUpdate()
+                        ->findOrFail($lineData['location_id']);
+
+                    $this->ensureOperationalReceivingLocation($location, $index);
 
                     $purchaseLine = $lockedPurchaseLines?->get($product->id);
+
                     if ($purchaseOrder !== null && $purchaseLine === null) {
                         throw ValidationException::withMessages([
                             "lines.{$index}.product_id" => 'The product is not listed on this purchase order.',
@@ -99,6 +107,7 @@ class InventoryService
                     if ($purchaseLine !== null) {
                         $outstanding = $this->quantityUnits($purchaseLine->ordered_quantity)
                             - $this->quantityUnits($purchaseLine->received_quantity);
+
                         $quantity = $this->quantityUnits($lineData['quantity']);
 
                         if ($quantity > $outstanding && empty($receiptData['accept_discrepancies'])) {
@@ -134,7 +143,13 @@ class InventoryService
                     ]);
 
                     $this->addToBalance($batch, $location, $lineData['quantity']);
-                    $this->addToLegacyBinInventory($product, $location, $batch, $lineData['quantity']);
+
+                    $this->addToLegacyBinInventory(
+                        $product,
+                        $location,
+                        $batch,
+                        $lineData['quantity'],
+                    );
 
                     StockMovement::query()->create([
                         'batch_id' => $batch->id,
@@ -153,6 +168,7 @@ class InventoryService
                             $this->quantityUnits($purchaseLine->received_quantity)
                                 + $this->quantityUnits($lineData['quantity']),
                         );
+
                         $purchaseLine->save();
                     }
                 }
@@ -160,6 +176,7 @@ class InventoryService
                 if ($purchaseOrder !== null) {
                     $this->refreshPurchaseOrderStatus($purchaseOrder);
                     $purchaseOrder->refresh();
+
                     $this->auditService->record(
                         $purchaseOrder,
                         'receipt_quantities_updated',
@@ -179,7 +196,13 @@ class InventoryService
                     'line_count' => count($receiptData['lines']),
                 ]);
 
-                return $receipt->load('lines.product', 'lines.batch', 'lines.location', 'supplier', 'purchaseOrder');
+                return $receipt->load(
+                    'lines.product',
+                    'lines.batch',
+                    'lines.location',
+                    'supplier',
+                    'purchaseOrder',
+                );
             }, attempts: 3);
         } catch (QueryException $exception) {
             if (GoodsReceipt::query()->where('submission_token', $submissionToken)->exists()) {
@@ -250,29 +273,79 @@ class InventoryService
             $movedAt,
             $idempotencyKey,
         ): StockMovement {
+            // Check permission according to the operation being performed.
+            $canMoveStock = match ($movementType) {
+                'transfer' => (
+                    $actor->hasPermission('Perform stock transfers and bin movements')
+                    || $actor->hasPermission('Receive, transfer, dispatch, and reconcile stock')
+                ),
+
+                'put_away' => (
+                    $actor->hasPermission('Perform goods receipt and staging put-away')
+                    || $actor->hasPermission('Receive, transfer, dispatch, and reconcile stock')
+                ),
+
+                default => false,
+            };
+
+            abort_unless($canMoveStock, 403, 'You are not authorised to move stock.');
+
+            // Prevent a previously submitted movement from being processed again.
             if (
                 $idempotencyKey !== null
                 && StockMovement::query()->where('idempotency_key', $idempotencyKey)->exists()
             ) {
                 throw ValidationException::withMessages([
-                    'destination_location_id' => 'This put-away request has already been processed.',
+                    'destination_location_id' => 'This stock movement request has already been processed.',
                 ]);
             }
 
+            // Reload and lock the latest balance to prevent stale transfers.
             $lockedBalance = StockBalance::query()
                 ->with('batch')
                 ->lockForUpdate()
                 ->findOrFail($balance->id);
-            $lockedBatch = Batch::query()->lockForUpdate()->findOrFail($lockedBalance->batch_id);
-            $source = Location::query()->lockForUpdate()->findOrFail($lockedBalance->location_id);
-            $target = Location::query()->lockForUpdate()->findOrFail($destination->id);
-            if ($source->type !== 'bin') {
+
+            $lockedBatch = Batch::query()
+                ->lockForUpdate()
+                ->findOrFail($lockedBalance->batch_id);
+
+            // Expired batches cannot be put away or transferred.
+            // Their existing stock remains recorded at its current location.
+            if (
+                $lockedBatch->expires_at !== null
+                && $lockedBatch->expires_at->lt(today())
+            ) {
                 throw ValidationException::withMessages([
-                    'quantity' => 'Stock can only be moved from a bin.',
+                    'quantity' => 'Expired stock cannot be put away or transferred. It must remain in its current location.',
                 ]);
             }
-            $this->ensureOperationalBin($source);
-            abort_unless($actor->can('update', $target), 403);
+
+            $source = Location::query()
+                ->lockForUpdate()
+                ->findOrFail($lockedBalance->location_id);
+
+            $target = Location::query()
+                ->lockForUpdate()
+                ->findOrFail($destination->id);
+
+            // Put-away can start from Receiving, Staging, or an existing bin.
+            // Ordinary transfers must start from a storage bin.
+            if (
+                $movementType === 'put_away'
+                && in_array($source->type, ['receiving', 'staging'], true)
+            ) {
+                $this->ensureOperationalReceivingOrStagingLocation($source);
+            } elseif ($source->type === 'bin') {
+                $this->ensureOperationalBin($source);
+            } else {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Stock must come from an operational bin, Receiving Area, or Staging Area.',
+                ]);
+            }
+
+            // Destination must be a valid operational storage bin.
+            // This does not require the actor to have location-editing permission.
             $this->ensureOperationalBin($target);
 
             if ($source->id === $target->id) {
@@ -283,9 +356,10 @@ class InventoryService
 
             $movedUnits = $this->quantityUnits($quantity);
             $sourceUnits = $this->quantityUnits($lockedBalance->quantity);
+
             if ($movedUnits < 1 || $movedUnits > $sourceUnits) {
                 throw ValidationException::withMessages([
-                    'quantity' => 'The put-away quantity must be positive and no greater than the available balance.',
+                    'quantity' => 'The transfer quantity must be positive and no greater than the available balance.',
                 ]);
             }
 
@@ -296,7 +370,7 @@ class InventoryService
                 ->first();
 
             if ($targetBalance === null) {
-                $targetBalance = StockBalance::query()->create([
+                StockBalance::query()->create([
                     'batch_id' => $lockedBatch->id,
                     'location_id' => $target->id,
                     'quantity' => $this->formatQuantity($movedUnits),
@@ -305,10 +379,12 @@ class InventoryService
                 $targetBalance->quantity = $this->formatQuantity(
                     $this->quantityUnits($targetBalance->quantity) + $movedUnits,
                 );
+
                 $targetBalance->save();
             }
 
             $remainingUnits = $sourceUnits - $movedUnits;
+
             if ($remainingUnits === 0) {
                 $lockedBalance->delete();
             } else {
@@ -337,14 +413,20 @@ class InventoryService
                 'idempotency_key' => $idempotencyKey,
                 'moved_at' => $movedAt,
             ]);
-            $this->auditService->record($movement, $movementType === 'transfer' ? 'stock_transferred' : 'stock_put_away', [], [
-                'batch_id' => $lockedBatch->id,
-                'from_location_id' => $source->id,
-                'to_location_id' => $target->id,
-                'quantity' => $movement->quantity,
-                'reason' => $reason,
-                'performed_by' => $actor->id,
-            ]);
+
+            $this->auditService->record(
+                $movement,
+                $movementType === 'transfer' ? 'stock_transferred' : 'stock_put_away',
+                [],
+                [
+                    'batch_id' => $lockedBatch->id,
+                    'from_location_id' => $source->id,
+                    'to_location_id' => $target->id,
+                    'quantity' => $movement->quantity,
+                    'reason' => $reason,
+                    'performed_by' => $actor->id,
+                ],
+            );
 
             return $movement;
         }, attempts: 3);
@@ -353,9 +435,18 @@ class InventoryService
     public function balanceForLegacyInventory(BinInventory $inventory, User $actor): StockBalance
     {
         return DB::transaction(function () use ($inventory, $actor): StockBalance {
-            $legacyInventory = BinInventory::query()->lockForUpdate()->findOrFail($inventory->id);
-            $product = Product::query()->lockForUpdate()->findOrFail($legacyInventory->product_id);
-            $location = Location::query()->lockForUpdate()->findOrFail($legacyInventory->location_id);
+            $legacyInventory = BinInventory::query()
+                ->lockForUpdate()
+                ->findOrFail($inventory->id);
+
+            $product = Product::query()
+                ->lockForUpdate()
+                ->findOrFail($legacyInventory->product_id);
+
+            $location = Location::query()
+                ->lockForUpdate()
+                ->findOrFail($legacyInventory->location_id);
+
             $batch = Batch::query()
                 ->where('product_id', $product->id)
                 ->where('batch_number', $legacyInventory->batch_number)
@@ -384,6 +475,7 @@ class InventoryService
                 'location_id' => $location->id,
                 'quantity' => $legacyInventory->quantity,
             ]);
+
             StockMovement::query()->create([
                 'batch_id' => $batch->id,
                 'to_location_id' => $location->id,
@@ -402,15 +494,18 @@ class InventoryService
     private function refreshPurchaseOrderStatus(PurchaseOrder $purchaseOrder): void
     {
         $purchaseOrder->load('lines');
+
         $receivedUnits = $purchaseOrder->lines->sum(
             fn (PurchaseOrderLine $line): int => $this->quantityUnits($line->received_quantity),
         );
+
         $outstandingUnits = $purchaseOrder->lines->sum(
             fn (PurchaseOrderLine $line): int => max(
                 0,
                 $this->quantityUnits($line->ordered_quantity) - $this->quantityUnits($line->received_quantity),
             ),
         );
+
         $status = $outstandingUnits === 0
             ? PurchaseOrder::STATUS_RECEIVED
             : ($receivedUnits > 0 ? PurchaseOrder::STATUS_PARTIALLY_RECEIVED : PurchaseOrder::STATUS_APPROVED);
@@ -460,6 +555,7 @@ class InventoryService
         $balance->quantity = $this->formatQuantity(
             $this->quantityUnits($balance->quantity) + $this->quantityUnits($quantity),
         );
+
         $balance->save();
     }
 
@@ -490,6 +586,7 @@ class InventoryService
         $inventory->quantity = $this->formatQuantity(
             $this->quantityUnits($inventory->quantity) + $this->quantityUnits($quantity),
         );
+
         $inventory->save();
     }
 
@@ -506,6 +603,7 @@ class InventoryService
             ->where('batch_number', $batchNumber)
             ->lockForUpdate()
             ->firstOrFail();
+
         $remainingUnits = $this->quantityUnits($inventory->quantity) - $movedUnits;
 
         if ($remainingUnits < 0) {
@@ -539,23 +637,35 @@ class InventoryService
             $targetInventory->quantity = $this->formatQuantity(
                 $this->quantityUnits($targetInventory->quantity) + $movedUnits,
             );
+
             $targetInventory->save();
         }
     }
 
     private function ensureOperationalBin(Location $location, ?int $lineIndex = null): void
     {
-        $field = $lineIndex === null ? 'destination_location_id' : "lines.{$lineIndex}.location_id";
+        $field = $lineIndex === null
+            ? 'destination_location_id'
+            : "lines.{$lineIndex}.location_id";
+
         $expectedType = 'bin';
         $visited = [];
-        $current = Location::query()->lockForUpdate()->findOrFail($location->id);
+
+        $current = Location::query()
+            ->lockForUpdate()
+            ->findOrFail($location->id);
 
         while (true) {
-            if (isset($visited[$current->id]) || $current->type !== $expectedType || $current->status !== 'active') {
+            if (
+                isset($visited[$current->id])
+                || $current->type !== $expectedType
+                || $current->status !== 'active'
+            ) {
                 throw ValidationException::withMessages([
                     $field => 'Stock must be assigned to a bin under an active warehouse hierarchy.',
                 ]);
             }
+
             $visited[$current->id] = true;
 
             if ($current->parent_id === null) {
@@ -574,13 +684,65 @@ class InventoryService
                 'zone' => 'warehouse',
                 default => '',
             };
-            $current = Location::query()->lockForUpdate()->findOrFail($current->parent_id);
+
+            $current = Location::query()
+                ->lockForUpdate()
+                ->findOrFail($current->parent_id);
+        }
+    }
+
+    /**
+     * Confirm that goods are received into an active Receiving Area
+     * directly under an active warehouse.
+     */
+    private function ensureOperationalReceivingLocation(
+        Location $location,
+        ?int $lineIndex = null
+    ): void {
+        $field = $lineIndex === null
+            ? 'location_id'
+            : "lines.{$lineIndex}.location_id";
+
+        $location->loadMissing('parent');
+
+        if (
+            $location->type !== 'receiving'
+            || $location->status !== 'active'
+            || $location->parent?->type !== 'warehouse'
+            || ! $location->isOperational()
+        ) {
+            throw ValidationException::withMessages([
+                $field => 'Choose an active Receiving Area under an active warehouse.',
+            ]);
+        }
+    }
+
+    /**
+     * Confirm that put-away stock comes from an active Receiving or Staging Area.
+     */
+    private function ensureOperationalReceivingOrStagingLocation(Location $location): void
+    {
+        $location->loadMissing('parent');
+
+        if (
+            ! in_array($location->type, ['receiving', 'staging'], true)
+            || $location->status !== 'active'
+            || $location->parent?->type !== 'warehouse'
+            || ! $location->isOperational()
+        ) {
+            throw ValidationException::withMessages([
+                'quantity' => 'The source must be an active Receiving Area or Staging Area under an active warehouse.',
+            ]);
         }
     }
 
     private function quantityUnits(string|int|float $quantity): int
     {
-        [$whole, $fraction] = array_pad(explode('.', number_format((float) $quantity, 3, '.', '')), 2, '000');
+        [$whole, $fraction] = array_pad(
+            explode('.', number_format((float) $quantity, 3, '.', '')),
+            2,
+            '000',
+        );
 
         return ((int) $whole * 1000) + (int) $fraction;
     }

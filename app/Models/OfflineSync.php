@@ -15,6 +15,7 @@ class OfflineSync extends Model
         'user_id',
         'operation',
         'payload_hash',
+        'payload',
         'result_url',
         'completed_at',
     ];
@@ -22,6 +23,7 @@ class OfflineSync extends Model
     protected function casts(): array
     {
         return [
+            'payload' => 'array',
             'completed_at' => 'datetime',
         ];
     }

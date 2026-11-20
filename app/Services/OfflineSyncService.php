@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 class OfflineSyncService
 {
     /**
-     * @param  array<string, mixed>  $payload
+     * @param array<string, mixed> $payload
      * @return array{duplicate: bool, next_url: string}
      */
     public function synchronize(
@@ -21,25 +21,43 @@ class OfflineSyncService
         Closure $sync,
     ): array {
         unset($payload['client_id'], $payload['_token'], $payload['_method']);
+
         $payloadHash = hash('sha256', json_encode(
             $this->canonicalize($payload),
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
         ));
 
-        return DB::transaction(function () use ($user, $clientId, $operation, $payloadHash, $sync): array {
-            $existingSync = OfflineSync::query()->lockForUpdate()->find($clientId);
+        return DB::transaction(function () use (
+            $user,
+            $clientId,
+            $operation,
+            $payload,
+            $payloadHash,
+            $sync
+        ): array {
+            $existingSync = OfflineSync::query()
+                ->lockForUpdate()
+                ->find($clientId);
+
             if ($existingSync !== null) {
                 abort_unless(
                     (int) $existingSync->user_id === $user->id
-                        && $existingSync->operation === $operation
-                        && hash_equals($existingSync->payload_hash, $payloadHash),
+                    && $existingSync->operation === $operation
+                    && hash_equals($existingSync->payload_hash, $payloadHash),
                     409,
                     'This client transaction ID was already used with different data or an account.',
                 );
 
-                abort_unless($existingSync->completed_at !== null && $existingSync->result_url !== null, 409);
+                abort_unless(
+                    $existingSync->completed_at !== null
+                    && $existingSync->result_url !== null,
+                    409
+                );
 
-                return ['duplicate' => true, 'next_url' => $existingSync->result_url];
+                return [
+                    'duplicate' => true,
+                    'next_url' => $existingSync->result_url,
+                ];
             }
 
             $offlineSync = OfflineSync::query()->create([
@@ -47,19 +65,27 @@ class OfflineSyncService
                 'user_id' => $user->id,
                 'operation' => $operation,
                 'payload_hash' => $payloadHash,
+                'payload' => $operation === 'goods_receipt_review'
+                    ? $payload
+                    : null,
             ]);
+
             $nextUrl = $sync();
+
             $offlineSync->forceFill([
                 'result_url' => $nextUrl,
                 'completed_at' => now(),
             ])->save();
 
-            return ['duplicate' => false, 'next_url' => $nextUrl];
+            return [
+                'duplicate' => false,
+                'next_url' => $nextUrl,
+            ];
         }, attempts: 3);
     }
 
     /**
-     * @param  array<mixed>  $value
+     * @param array<mixed> $value
      * @return array<mixed>
      */
     private function canonicalize(array $value): array
@@ -69,6 +95,7 @@ class OfflineSyncService
                 $item = $this->canonicalize($item);
             }
         }
+
         unset($item);
 
         if (! array_is_list($value)) {

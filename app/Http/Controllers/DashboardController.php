@@ -11,8 +11,10 @@ use App\Models\InventorySetting;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\PutAwayTask;
 use App\Models\StockCount;
 use App\Models\StockMovement;
+use App\Models\Supplier;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -24,7 +26,7 @@ class DashboardController extends Controller
 {
     public function index(Request $request): View
     {
-        $filters = $request->validate([
+        $validated = $request->validate([
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
@@ -32,45 +34,62 @@ class DashboardController extends Controller
             'batch_id' => ['nullable', 'integer', 'exists:batches,id'],
             'location_id' => ['nullable', 'integer', 'exists:locations,id'],
         ]);
+
         $filters = [
-            ...$filters,
-            'from' => $filters['from'] ?? today()->subDays(29)->toDateString(),
-            'to' => $filters['to'] ?? today()->toDateString(),
-            'product_id' => $filters['product_id'] ?? null,
-            'category_id' => $filters['category_id'] ?? null,
-            'batch_id' => $filters['batch_id'] ?? null,
-            'location_id' => $filters['location_id'] ?? null,
+            'from' => $validated['from'] ?? today()->subDays(29)->toDateString(),
+            'to' => $validated['to'] ?? today()->toDateString(),
+            'product_id' => $validated['product_id'] ?? null,
+            'category_id' => $validated['category_id'] ?? null,
+            'batch_id' => $validated['batch_id'] ?? null,
+            'location_id' => $validated['location_id'] ?? null,
         ];
 
+        // STOCK AND INVENTORY METRICS
+
         $stockQuery = $this->stockQuery($filters);
+
         $stockQuantity = (float) (clone $stockQuery)->sum('sb.quantity');
-        $activeBatchesCount = (clone $stockQuery)->distinct()->count('b.id');
-        $pendingDispatchesCount = DispatchRequest::query()->where('status', 'requested')->count();
+
+        $activeBatchesCount = (clone $stockQuery)
+            ->distinct()
+            ->count('b.id');
+
+        $pendingDispatchesCount = DispatchRequest::query()
+            ->where('status', 'requested')
+            ->count();
+
         $criticalAlertsCount = Alert::query()
             ->whereNull('resolved_at')
             ->where('condition_active', true)
             ->whereIn('severity', ['critical', 'high'])
             ->count();
+
         $categoryStock = (clone $stockQuery)
             ->selectRaw("COALESCE(c.name, 'Uncategorized') as label, SUM(sb.quantity) as quantity")
             ->groupBy('c.name')
             ->orderBy('label')
             ->get();
+
         $expiryStatus = $this->expiryStatus($stockQuery);
         $lowStockProducts = $this->lowStockProducts($filters);
+
         $pendingPurchaseOrders = $this->pendingPurchaseOrders($filters)->count();
         $pendingCountApprovals = $this->pendingCountApprovals($filters)->count();
+
         $expiryWindows = InventorySetting::query()->first()?->expiryWindows() ?? [
             'soon' => 30,
             'warning' => 60,
             'notice' => 90,
         ];
 
+        // STOCK MOVEMENT CHARTS
+
         $movementRows = $this->movementQuery($filters)
             ->selectRaw('DATE(sm.moved_at) as movement_date, sm.movement_type, SUM(sm.quantity) as quantity')
             ->groupByRaw('DATE(sm.moved_at), sm.movement_type')
             ->orderBy('movement_date')
             ->get();
+
         $movementChart = $this->movementChart($movementRows);
         $receiptIssueChart = $this->receiptIssueChart($movementRows);
         $ira = $this->inventoryRecordAccuracy($filters);
@@ -78,15 +97,19 @@ class DashboardController extends Controller
         $receivedQuantity = (float) (clone $this->movementQuery($filters))
             ->where('sm.movement_type', 'receipt')
             ->sum('sm.quantity');
+
         $issuedQuantity = (float) (clone $this->movementQuery($filters))
             ->where('sm.movement_type', 'dispatch')
             ->sum('sm.quantity');
+
         $expiringBatchCount = (clone $stockQuery)
             ->whereNotNull('b.expires_at')
             ->whereDate('b.expires_at', '>=', today())
             ->whereDate('b.expires_at', '<=', today()->addDays($expiryWindows['notice']))
             ->distinct()
             ->count('b.id');
+
+        // RECENT STOCK MOVEMENTS
 
         $recentMovements = StockMovement::query()
             ->with('batch.product', 'fromLocation', 'toLocation', 'performer')
@@ -102,24 +125,32 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
+        // RECENT GOODS RECEIPTS
+
         $recentReceipts = GoodsReceipt::query()
             ->with('supplier', 'lines.product', 'lines.batch', 'lines.location')
             ->when($filters['from'], fn ($query, string $date) => $query->whereDate('received_at', '>=', $date))
             ->when($filters['to'], fn ($query, string $date) => $query->whereDate('received_at', '<=', $date))
-            ->when($filters['product_id'] || $filters['category_id'] || $filters['batch_id'] || $filters['location_id'], function ($query) use ($filters): void {
-                $query->whereHas('lines', function ($line) use ($filters): void {
-                    $line->when($filters['product_id'], fn ($query, int $id) => $query->where('product_id', $id))
-                        ->when($filters['batch_id'], fn ($query, int $id) => $query->where('batch_id', $id))
-                        ->when($filters['location_id'], fn ($query, int $id) => $query->where('location_id', $id))
-                        ->when($filters['category_id'], fn ($query, int $id) => $query->whereHas('product', fn ($product) => $product->where('category_id', $id)));
-                });
-            })
+            ->when(
+                $filters['product_id'] || $filters['category_id'] || $filters['batch_id'] || $filters['location_id'],
+                function ($query) use ($filters): void {
+                    $query->whereHas('lines', function ($line) use ($filters): void {
+                        $line
+                            ->when($filters['product_id'], fn ($query, int $id) => $query->where('product_id', $id))
+                            ->when($filters['batch_id'], fn ($query, int $id) => $query->where('batch_id', $id))
+                            ->when($filters['location_id'], fn ($query, int $id) => $query->where('location_id', $id))
+                            ->when($filters['category_id'], fn ($query, int $id) => $query->whereHas('product', fn ($product) => $product->where('category_id', $id)));
+                    });
+                }
+            )
             ->latest('received_at')
             ->limit(5)
             ->get();
 
+        // RECENT DISPATCHES
+
         $recentDispatches = DispatchRequest::query()
-            ->with('product', 'dispatcher', 'lines.batch', 'lines.location')
+            ->with('product', 'requester', 'dispatcher', 'lines.batch', 'lines.location')
             ->where('status', 'dispatched')
             ->when($filters['from'], fn ($query, string $date) => $query->whereDate('dispatched_at', '>=', $date))
             ->when($filters['to'], fn ($query, string $date) => $query->whereDate('dispatched_at', '<=', $date))
@@ -134,6 +165,8 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
+        // ACTIVE ALERTS
+
         $openAlerts = Alert::query()
             ->whereNull('resolved_at')
             ->where('condition_active', true)
@@ -142,153 +175,337 @@ class DashboardController extends Controller
             ->limit(6)
             ->get();
 
+        // QUICK ACTIONS
+
         $user = $request->user();
+
         $quickActions = collect([
-            ['ability' => 'create', 'target' => PurchaseOrder::class, 'label' => 'Create purchase order', 'url' => route('purchase-orders.create')],
-            ['ability' => 'create', 'target' => GoodsReceipt::class, 'label' => 'Receive goods', 'url' => route('goods-receipts.create')],
-            ['ability' => 'create', 'target' => DispatchRequest::class, 'label' => 'Request dispatch', 'url' => route('dispatch-requests.create')],
-            ['ability' => 'create', 'target' => StockCount::class, 'label' => 'Create cycle count', 'url' => route('stock-counts.create')],
-            ['ability' => 'viewAny', 'target' => Location::class, 'label' => 'Transfer stock', 'url' => route('stock-transfers.create')],
-        ])->filter(fn (array $action): bool => $user?->can($action['ability'], $action['target']) ?? false)->values();
+            [
+                'ability' => 'create',
+                'target' => PurchaseOrder::class,
+                'label' => 'Create purchase order',
+                'url' => route('purchase-orders.create'),
+            ],
+            [
+                'ability' => 'create',
+                'target' => GoodsReceipt::class,
+                'label' => 'Receive goods',
+                'url' => route('goods-receipts.create'),
+            ],
+            [
+                'ability' => 'create',
+                'target' => DispatchRequest::class,
+                'label' => 'Request dispatch',
+                'url' => route('dispatch-requests.create'),
+            ],
+            [
+                'ability' => 'create',
+                'target' => StockCount::class,
+                'label' => 'Create cycle count',
+                'url' => route('stock-counts.create'),
+            ],
+            [
+                'ability' => 'viewAny',
+                'target' => Location::class,
+                'label' => 'Transfer stock',
+                'url' => route('stock-transfers.create'),
+            ],
+        ])
+            ->filter(fn (array $action): bool => $user?->can($action['ability'], $action['target']) ?? false)
+            ->values();
 
-        $totalProductsCount = Product::query()->where('status', 'active')->count();
-        $warehouseLocationsCount = Location::query()->where('type', 'bin')->count();
+        // GENERAL DASHBOARD COUNTS
 
-        // Target Mockup Visual Alignment Defaults
-        $displayTotalProducts = $totalProductsCount >= 20 ? $totalProductsCount : 245;
-        $displayStockUnits = $stockQuantity >= 10000 ? $stockQuantity : 125480;
-        $displayActiveBatches = $activeBatchesCount >= 20 ? $activeBatchesCount : 612;
-        $displayLocations = $warehouseLocationsCount >= 20 ? $warehouseLocationsCount : 48;
+        $totalProductsCount = Product::query()
+            ->where('status', 'active')
+            ->count();
 
-        $categoryBreakdown = [
-            ['name' => 'Food & Beverages', 'percentage' => 34, 'quantity' => 42663, 'color' => '#2563eb'],
-            ['name' => 'Detergents & Cleaning', 'percentage' => 22, 'quantity' => 27605, 'color' => '#0ea5e9'],
-            ['name' => 'Personal Care', 'percentage' => 18, 'quantity' => 22586, 'color' => '#eab308'],
-            ['name' => 'Household', 'percentage' => 12, 'quantity' => 15057, 'color' => '#22c55e'],
-            ['name' => 'Others', 'percentage' => 14, 'quantity' => 17569, 'color' => '#8b5cf6'],
+        $warehouseLocationsCount = Location::query()
+            ->where('type', 'bin')
+            ->count();
+
+        $putAwayBalancesCount = DB::table('stock_balances')
+            ->where('quantity', '>', 0)
+            ->count();
+
+        $putAwayUnitsCount = (float) DB::table('stock_balances')
+            ->where('quantity', '>', 0)
+            ->sum('quantity');
+
+        $supplierCount = Supplier::query()
+            ->where('status', 'active')
+            ->count();
+
+        $outOfStockCount = Product::query()
+            ->where('status', 'active')
+            ->whereNotIn(
+                'id',
+                DB::table('stock_balances')
+                    ->join('batches', 'batches.id', '=', 'stock_balances.batch_id')
+                    ->where('stock_balances.quantity', '>', 0)
+                    ->select('batches.product_id')
+            )
+            ->count();
+
+        // PUT-AWAY TASK COUNTS
+
+        $putAwayTaskQuery = PutAwayTask::query()
+            ->when($filters['from'], fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($filters['to'], fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
+            ->when($filters['product_id'], fn ($query, int $id) => $query->whereHas('batch', fn ($batch) => $batch->where('product_id', $id)))
+            ->when($filters['category_id'], fn ($query, int $id) => $query->whereHas('batch.product', fn ($product) => $product->where('category_id', $id)))
+            ->when($filters['batch_id'], fn ($query, int $id) => $query->where('batch_id', $id))
+            ->when($filters['location_id'], fn ($query) => $query->where(function ($location) use ($filters): void {
+                $location->where('source_location_id', $filters['location_id'])
+                    ->orWhere('destination_location_id', $filters['location_id']);
+            }));
+
+        $putAwayPendingCount = (clone $putAwayTaskQuery)
+            ->where('status', PutAwayTask::STATUS_PENDING)
+            ->count();
+
+        $putAwayInProgressCount = (clone $putAwayTaskQuery)
+            ->where('status', PutAwayTask::STATUS_IN_PROGRESS)
+            ->count();
+
+        $putAwayCompletedCount = (clone $putAwayTaskQuery)
+            ->where('status', PutAwayTask::STATUS_COMPLETED)
+            ->count();
+
+        // LIVE CATEGORY BREAKDOWN
+
+        $categoryColors = [
+            '#2563eb',
+            '#0ea5e9',
+            '#eab308',
+            '#22c55e',
+            '#8b5cf6',
+            '#f97316',
+            '#ec4899',
+            '#64748b',
         ];
+
+        $categoryTotal = (float) $categoryStock->sum('quantity');
+
+        $categoryBreakdown = $categoryStock
+            ->values()
+            ->map(function ($item, int $index) use ($categoryColors, $categoryTotal): array {
+                $quantity = (float) $item->quantity;
+
+                return [
+                    'name' => $item->label,
+                    'quantity' => $quantity,
+                    'percentage' => $categoryTotal > 0
+                        ? round(($quantity / $categoryTotal) * 100, 1)
+                        : 0,
+                    'color' => $categoryColors[$index % count($categoryColors)],
+                ];
+            })
+            ->all();
+
+        // LIVE SEVEN-DAY STOCK MOVEMENT
+
+        $sevenDaysStart = today()->subDays(6)->startOfDay();
+        $sevenDaysEnd = today()->endOfDay();
+
+        $sevenDayRows = $this->movementQuery($filters)
+            ->whereBetween('sm.moved_at', [$sevenDaysStart, $sevenDaysEnd])
+            ->selectRaw('DATE(sm.moved_at) as movement_date, sm.movement_type, SUM(sm.quantity) as quantity')
+            ->groupByRaw('DATE(sm.moved_at), sm.movement_type')
+            ->get();
+
+        $sevenDayTotals = [];
+
+        foreach ($sevenDayRows as $row) {
+            $date = $row->movement_date;
+            $type = $row->movement_type;
+
+            $sevenDayTotals[$date][$type] = (float) $row->quantity;
+        }
+
+        $sevenDayLabels = [];
+        $sevenDayReceived = [];
+        $sevenDayIssued = [];
+        $sevenDayPutAway = [];
+        $sevenDayTransferred = [];
+
+        for ($day = 0; $day < 7; $day++) {
+            $date = today()->subDays(6 - $day)->toDateString();
+
+            $sevenDayLabels[] = Carbon::parse($date)->format('M d');
+            $sevenDayReceived[] = (float) ($sevenDayTotals[$date]['receipt'] ?? 0);
+            $sevenDayIssued[] = (float) ($sevenDayTotals[$date]['dispatch'] ?? 0);
+            $sevenDayPutAway[] = (float) ($sevenDayTotals[$date]['put_away'] ?? 0);
+            $sevenDayTransferred[] = (float) ($sevenDayTotals[$date]['transfer'] ?? 0);
+        }
 
         $stockMovement7Days = [
-            'labels' => ['Apr 16', 'Apr 17', 'Apr 18', 'Apr 19', 'Apr 20', 'Apr 21', 'Apr 22'],
-            'received' => [2800, 4800, 3100, 4200, 3900, 5600, 5200],
-            'issued' => [1900, 2900, 2700, 2400, 2800, 4100, 3800],
+            'labels' => $sevenDayLabels,
+            'received' => $sevenDayReceived,
+            'issued' => $sevenDayIssued,
+            'put_away' => $sevenDayPutAway,
+            'transferred' => $sevenDayTransferred,
         ];
 
-        $expiryBreakdown = [
-            ['label' => 'Good', 'percentage' => 72, 'quantity' => 441, 'color' => '#22c55e'],
-            ['label' => 'Expiring ≤ 90 days', 'percentage' => 12, 'quantity' => 73, 'color' => '#eab308'],
-            ['label' => 'Expiring ≤ 60 days', 'percentage' => 6, 'quantity' => 37, 'color' => '#f97316'],
-            ['label' => 'Expiring ≤ 30 days', 'percentage' => 5, 'quantity' => 31, 'color' => '#ef4444'],
-            ['label' => 'Expired', 'percentage' => 5, 'quantity' => 30, 'color' => '#a855f7'],
-        ];
+        // LIVE EXPIRY BREAKDOWN
 
-        $targetMovements = [
-            [
-                'date' => '22 Apr 2025 10:24',
-                'product' => 'Ariel Washing Powder 500g',
-                'category' => 'Detergents & Cleaning',
-                'type' => 'Received',
-                'badge' => 'received',
-                'quantity' => '+200',
-                'location' => 'A01-B02',
-                'icon' => 'box',
-            ],
-            [
-                'date' => '22 Apr 2025 09:45',
-                'product' => 'Sunlight Soap 250g',
-                'category' => 'Detergents & Cleaning',
-                'type' => 'Issued',
-                'badge' => 'issued',
-                'quantity' => '-50',
-                'location' => 'A01-B01',
-                'icon' => 'box',
-            ],
-            [
-                'date' => '21 Apr 2025 16:32',
-                'product' => 'Cooking Oil 5L',
-                'category' => 'Food & Beverages',
-                'type' => 'Transferred',
-                'badge' => 'transferred',
-                'quantity' => '-30',
-                'location' => 'B03-C01',
-                'icon' => 'box',
-            ],
-            [
-                'date' => '21 Apr 2025 14:18',
-                'product' => 'Unga Maize Flour 5kg',
-                'category' => 'Food & Beverages',
-                'type' => 'Received',
-                'badge' => 'received',
-                'quantity' => '+150',
-                'location' => 'A02-B03',
-                'icon' => 'box',
-            ],
-            [
-                'date' => '21 Apr 2025 11:05',
-                'product' => 'Dettol Soap 100g',
-                'category' => 'Personal Care',
-                'type' => 'Issued',
-                'badge' => 'issued',
-                'quantity' => '-20',
-                'location' => 'A01-B02',
-                'icon' => 'box',
-            ],
-        ];
+        $expiryTotal = (float) collect($expiryStatus)->sum('quantity');
 
-        $targetReceipts = [
-            ['date' => '22 Apr 2025', 'receipt_number' => 'GRN-2025-0012', 'supplier' => 'Unilever Uganda', 'status' => 'Received'],
-            ['date' => '21 Apr 2025', 'receipt_number' => 'GRN-2025-0011', 'supplier' => 'Bakhtress Group', 'status' => 'Received'],
-            ['date' => '20 Apr 2025', 'receipt_number' => 'GRN-2025-0010', 'supplier' => 'Nestle Uganda', 'status' => 'Received'],
-            ['date' => '18 Apr 2025', 'receipt_number' => 'GRN-2025-0009', 'supplier' => 'PZ Cussons', 'status' => 'Received'],
-            ['date' => '16 Apr 2025', 'receipt_number' => 'GRN-2025-0008', 'supplier' => 'Unga Ltd', 'status' => 'Received'],
-        ];
+        $expiryBreakdown = collect($expiryStatus)
+            ->values()
+            ->map(function (array $item, int $index) use ($expiryTotal, $categoryColors): array {
+                $label = $item['label'];
+                $quantity = (float) $item['quantity'];
+                $lowerLabel = strtolower($label);
 
-        $targetDispatches = [
-            ['date' => '22 Apr 2025', 'gdn_number' => 'GDN-2025-0008', 'customer' => 'Kampala Supermarket', 'status' => 'Dispatched'],
-            ['date' => '21 Apr 2025', 'gdn_number' => 'GDN-2025-0007', 'customer' => 'Retail Outlets', 'status' => 'Dispatched'],
-            ['date' => '20 Apr 2025', 'gdn_number' => 'GDN-2025-0006', 'customer' => 'Hospitals Division', 'status' => 'Dispatched'],
-            ['date' => '18 Apr 2025', 'gdn_number' => 'GDN-2025-0005', 'customer' => 'Schools Program', 'status' => 'Dispatched'],
-            ['date' => '17 Apr 2025', 'gdn_number' => 'GDN-2025-0004', 'customer' => 'Retail Outlets', 'status' => 'Dispatched'],
-        ];
+                $color = str_contains($lowerLabel, 'expired')
+                    ? '#ef4444'
+                    : (str_contains($lowerLabel, 'within')
+                        ? '#f97316'
+                        : (str_contains($lowerLabel, 'days')
+                            ? '#eab308'
+                            : (str_contains($lowerLabel, 'over')
+                                ? '#22c55e'
+                                : (str_contains($lowerLabel, 'no expiry')
+                                    ? '#64748b'
+                                    : $categoryColors[$index % count($categoryColors)]))));
 
-        $targetLowStock = [
-            ['product' => 'Sanitary Pads', 'current_stock' => 12, 'min_level' => 50, 'status' => 'Low', 'color' => '#f43f5e'],
-            ['product' => 'Toothpaste 100g', 'current_stock' => 25, 'min_level' => 100, 'status' => 'Low', 'color' => '#0ea5e9'],
-            ['product' => 'Cooking Oil 5L', 'current_stock' => 48, 'min_level' => 200, 'status' => 'Low', 'color' => '#f59e0b'],
-            ['product' => 'Detergent Powder 1kg', 'current_stock' => 76, 'min_level' => 150, 'status' => 'Low', 'color' => '#3b82f6'],
-            ['product' => 'Baby Diapers', 'current_stock' => 90, 'min_level' => 300, 'status' => 'Low', 'color' => '#10b981'],
-        ];
+                return [
+                    'label' => $label,
+                    'quantity' => $quantity,
+                    'percentage' => $expiryTotal > 0
+                        ? round(($quantity / $expiryTotal) * 100, 1)
+                        : 0,
+                    'color' => $color,
+                ];
+            })
+            ->all();
 
-        $targetAlerts = [
-            [
-                'title' => '3 products are below minimum stock',
-                'time' => '2h ago',
-                'severity' => 'warning',
-                'icon' => 'alert',
-                'link' => route('inventory.index', ['filter' => 'low_stock']),
-            ],
-            [
-                'title' => '5 batches expiring within 30 days',
-                'time' => '4h ago',
-                'severity' => 'warning',
-                'icon' => 'clock',
-                'link' => route('alerts.index'),
-            ],
-            [
-                'title' => '2 purchase orders pending',
-                'time' => '6h ago',
-                'severity' => 'danger',
-                'icon' => 'order',
-                'link' => route('purchase-orders.index'),
-            ],
-            [
-                'title' => '1 stock count approval pending',
-                'time' => '9h ago',
-                'severity' => 'danger',
-                'icon' => 'check',
-                'link' => route('stock-counts.index'),
-            ],
-        ];
+        // LIVE MOVEMENT TABLE
+
+        $targetMovements = $recentMovements
+            ->map(function (StockMovement $movement): array {
+                $type = strtolower((string) $movement->movement_type);
+
+                $badge = match ($type) {
+                    'receipt' => 'received',
+                    'dispatch' => 'issued',
+                    'put_away' => 'put-away',
+                    'transfer' => 'transferred',
+                    default => 'other',
+                };
+
+                $quantity = (float) $movement->quantity;
+
+                $formattedQuantity = rtrim(
+                    rtrim(number_format(abs($quantity), 3, '.', ''), '0'),
+                    '.'
+                );
+
+                $formattedQuantity = match ($badge) {
+                    'received' => '+' . $formattedQuantity,
+                    'issued' => '-' . $formattedQuantity,
+                    default => $formattedQuantity,
+                };
+
+                $location = $movement->toLocation?->code
+                    ?? $movement->toLocation?->name
+                    ?? $movement->fromLocation?->code
+                    ?? $movement->fromLocation?->name
+                    ?? 'External';
+
+                return [
+                    'date' => $movement->moved_at
+                        ? Carbon::parse($movement->moved_at)->format('d M Y H:i')
+                        : '-',
+                    'product' => $movement->batch?->product?->name ?? 'Unknown product',
+                    'category' => $movement->batch?->product?->category?->name ?? 'Uncategorized',
+                    'type' => ucfirst(str_replace('_', ' ', $type)),
+                    'badge' => $badge,
+                    'quantity' => $formattedQuantity,
+                    'location' => $location,
+                    'icon' => 'box',
+                ];
+            })
+            ->values()
+            ->all();
+
+        // LIVE GOODS RECEIPTS TABLE
+
+        $targetReceipts = $recentReceipts
+            ->map(fn (GoodsReceipt $receipt): array => [
+                'date' => $receipt->received_at
+                    ? Carbon::parse($receipt->received_at)->format('d M Y')
+                    : '-',
+                'receipt_number' => $receipt->receipt_number ?? 'GRN pending',
+                'supplier' => $receipt->supplier?->name ?? 'Unknown supplier',
+                'status' => ucfirst(str_replace('_', ' ', (string) $receipt->status)),
+            ])
+            ->values()
+            ->all();
+
+        // LIVE DISPATCH TABLE
+
+        $targetDispatches = $recentDispatches
+            ->map(fn (DispatchRequest $dispatch): array => [
+                'date' => $dispatch->dispatched_at
+                    ? Carbon::parse($dispatch->dispatched_at)->format('d M Y')
+                    : '-',
+                'gdn_number' => $dispatch->gdn_number ?? 'GDN pending',
+                'customer' => $dispatch->requester?->name ?? 'Internal request',
+                'status' => ucfirst(str_replace('_', ' ', (string) $dispatch->status)),
+            ])
+            ->values()
+            ->all();
+
+        // LIVE LOW-STOCK TABLE
+
+        $targetLowStock = $lowStockProducts
+            ->map(function (array $item, int $index) use ($categoryColors): array {
+                return [
+                    'product' => $item['product']->name,
+                    'current_stock' => number_format($item['quantity'], 3),
+                    'min_level' => number_format($item['reorder_level'], 3),
+                    'status' => 'Low',
+                    'color' => $categoryColors[$index % count($categoryColors)],
+                ];
+            })
+            ->values()
+            ->all();
+
+        // LIVE ALERTS TABLE
+
+        $targetAlerts = $openAlerts
+            ->map(function (Alert $alert): array {
+                $severity = strtolower((string) $alert->severity);
+
+                $displaySeverity = in_array($severity, ['critical', 'high'], true)
+                    ? 'danger'
+                    : 'warning';
+
+                $title = $alert->getAttribute('title')
+                    ?: $alert->getAttribute('message')
+                    ?: $alert->getAttribute('description')
+                    ?: 'Inventory alert';
+
+                $icon = str_contains(strtolower($title), 'expir')
+                    ? 'clock'
+                    : (str_contains(strtolower($title), 'order') ? 'order' : 'alert');
+
+                return [
+                    'title' => $title,
+                    'time' => $alert->last_seen_at
+                        ? Carbon::parse($alert->last_seen_at)->diffForHumans()
+                        : 'Recently',
+                    'severity' => $displaySeverity,
+                    'icon' => $icon,
+                    'link' => route('alerts.index'),
+                ];
+            })
+            ->values()
+            ->all();
+
+        // REPORT DOWNLOAD DEFINITIONS
 
         $downloadReports = [
             ['title' => 'Stock on Hand Report', 'key' => 'stock-on-hand', 'icon' => 'clipboard', 'color' => '#10b981'],
@@ -298,17 +515,33 @@ class DashboardController extends Controller
             ['title' => 'Stock Movement Report', 'key' => 'movement', 'icon' => 'chart', 'color' => '#0ea5e9'],
         ];
 
+        // SEND DATA TO DASHBOARD VIEW
+
         return view('dashboard', [
             'filters' => $filters,
+
             'categories' => Category::query()->orderBy('name')->get(),
-            'products' => Product::query()->where('status', 'active')->orderBy('name')->get(),
-            'batches' => Batch::query()->with('product')->orderBy('batch_number')->get(),
-            'locations' => Location::query()->where('type', 'bin')->orderBy('code')->get(),
+
+            'products' => Product::query()
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(),
+
+            'batches' => Batch::query()
+                ->with('product')
+                ->orderBy('batch_number')
+                ->get(),
+
+            'locations' => Location::query()
+                ->where('type', 'bin')
+                ->orderBy('code')
+                ->get(),
+
             'metrics' => [
-                'total_products' => $displayTotalProducts,
-                'stock_quantity' => $displayStockUnits,
-                'active_batches' => $displayActiveBatches,
-                'warehouse_locations' => $displayLocations,
+                'total_products' => $totalProductsCount,
+                'stock_quantity' => $stockQuantity,
+                'active_batches' => $activeBatchesCount,
+                'warehouse_locations' => $warehouseLocationsCount,
                 'pending_dispatches' => $pendingDispatchesCount,
                 'critical_alerts' => $criticalAlertsCount,
                 'low_stock_products' => $lowStockProducts->count(),
@@ -318,7 +551,15 @@ class DashboardController extends Controller
                 'pending_count_approvals' => $pendingCountApprovals,
                 'received_quantity' => $receivedQuantity,
                 'issued_quantity' => $issuedQuantity,
+                'put_away_balances' => $putAwayBalancesCount,
+                'put_away_units' => $putAwayUnitsCount,
+                'put_away_pending' => $putAwayPendingCount,
+                'put_away_in_progress' => $putAwayInProgressCount,
+                'put_away_completed' => $putAwayCompletedCount,
+                'active_suppliers' => $supplierCount,
+                'out_of_stock_products' => $outOfStockCount,
             ],
+
             'categoryBreakdown' => $categoryBreakdown,
             'stockMovement7Days' => $stockMovement7Days,
             'expiryBreakdown' => $expiryBreakdown,
@@ -328,12 +569,14 @@ class DashboardController extends Controller
             'targetLowStock' => $targetLowStock,
             'targetAlerts' => $targetAlerts,
             'downloadReports' => $downloadReports,
+
             'lowStockProducts' => $lowStockProducts,
             'categoryStock' => $categoryStock,
             'expiryStatus' => $expiryStatus,
             'movementChart' => $movementChart,
             'receiptIssueChart' => $receiptIssueChart,
             'ira' => $ira,
+
             'recentMovements' => $recentMovements,
             'recentReceipts' => $recentReceipts,
             'recentDispatches' => $recentDispatches,
@@ -341,6 +584,8 @@ class DashboardController extends Controller
             'quickActions' => $quickActions,
         ]);
     }
+
+    // STOCK QUERY
 
     private function stockQuery(array $filters): Builder
     {
@@ -364,6 +609,8 @@ class DashboardController extends Controller
             ->when($filters['location_id'] ?? null, fn ($query, int $id) => $query->where('l.id', $id));
     }
 
+    // EXPIRY STATUS
+
     private function expiryStatus(Builder $stockQuery): array
     {
         $windows = InventorySetting::query()->first()?->expiryWindows() ?? [
@@ -371,36 +618,48 @@ class DashboardController extends Controller
             'warning' => 60,
             'notice' => 90,
         ];
+
         $totals = [
             'Expired' => 0.0,
             "Within {$windows['soon']} days" => 0.0,
-            ($windows['soon'] + 1)."-{$windows['warning']} days" => 0.0,
-            ($windows['warning'] + 1)."-{$windows['notice']} days" => 0.0,
+            ($windows['soon'] + 1) . "-{$windows['warning']} days" => 0.0,
+            ($windows['warning'] + 1) . "-{$windows['notice']} days" => 0.0,
             "Over {$windows['notice']} days" => 0.0,
             'No expiry date' => 0.0,
         ];
+
         $rows = (clone $stockQuery)
             ->selectRaw('b.expires_at, SUM(sb.quantity) as quantity')
             ->groupBy('b.expires_at')
             ->get();
 
         foreach ($rows as $row) {
+            $daysRemaining = $row->expires_at === null
+                ? null
+                : today()->diffInDays(Carbon::parse($row->expires_at)->startOfDay(), false);
+
             $bucket = match (true) {
                 $row->expires_at === null => 'No expiry date',
-                today()->diffInDays(Carbon::parse($row->expires_at)->startOfDay(), false) < 0 => 'Expired',
-                today()->diffInDays(Carbon::parse($row->expires_at)->startOfDay(), false) <= $windows['soon'] => "Within {$windows['soon']} days",
-                today()->diffInDays(Carbon::parse($row->expires_at)->startOfDay(), false) <= $windows['warning'] => ($windows['soon'] + 1)."-{$windows['warning']} days",
-                today()->diffInDays(Carbon::parse($row->expires_at)->startOfDay(), false) <= $windows['notice'] => ($windows['warning'] + 1)."-{$windows['notice']} days",
+                $daysRemaining < 0 => 'Expired',
+                $daysRemaining <= $windows['soon'] => "Within {$windows['soon']} days",
+                $daysRemaining <= $windows['warning'] => ($windows['soon'] + 1) . "-{$windows['warning']} days",
+                $daysRemaining <= $windows['notice'] => ($windows['warning'] + 1) . "-{$windows['notice']} days",
                 default => "Over {$windows['notice']} days",
             };
+
             $totals[$bucket] += (float) $row->quantity;
         }
 
         return collect($totals)
-            ->map(fn (float $quantity, string $label): array => ['label' => $label, 'quantity' => $quantity])
+            ->map(fn (float $quantity, string $label): array => [
+                'label' => $label,
+                'quantity' => $quantity,
+            ])
             ->values()
             ->all();
     }
+
+    // LOW STOCK PRODUCTS
 
     private function lowStockProducts(array $filters): Collection
     {
@@ -410,7 +669,15 @@ class DashboardController extends Controller
             ->when($filters['product_id'], fn ($query, int $id) => $query->whereKey($id))
             ->when($filters['category_id'], fn ($query, int $id) => $query->where('category_id', $id))
             ->when($filters['batch_id'], fn ($query, int $id) => $query->whereHas('batches', fn ($batch) => $batch->whereKey($id)));
-        $products = $productsQuery->get(['id', 'sku', 'name', 'unit', 'reorder_level']);
+
+        $products = $productsQuery->get([
+            'id',
+            'sku',
+            'name',
+            'unit',
+            'reorder_level',
+        ]);
+
         if ($products->isEmpty()) {
             return collect();
         }
@@ -422,7 +689,9 @@ class DashboardController extends Controller
             ->pluck('quantity', 'p.id');
 
         return $products
-            ->filter(fn (Product $product): bool => (float) ($quantities[$product->id] ?? 0) < (float) $product->reorder_level)
+            ->filter(fn (Product $product): bool =>
+                (float) ($quantities[$product->id] ?? 0) < (float) $product->reorder_level
+            )
             ->map(fn (Product $product): array => [
                 'product' => $product,
                 'quantity' => (float) ($quantities[$product->id] ?? 0),
@@ -430,6 +699,8 @@ class DashboardController extends Controller
             ])
             ->values();
     }
+
+    // PENDING PURCHASE ORDERS
 
     private function pendingPurchaseOrders(array $filters): \Illuminate\Database\Eloquent\Builder
     {
@@ -441,10 +712,15 @@ class DashboardController extends Controller
             ])
             ->when($filters['from'], fn ($query, string $date) => $query->whereDate('order_date', '>=', $date))
             ->when($filters['to'], fn ($query, string $date) => $query->whereDate('order_date', '<=', $date))
-            ->when($filters['product_id'] || $filters['category_id'], fn ($query) => $query->whereHas('lines.product', fn ($product) => $product
-                ->when($filters['product_id'], fn ($query, int $id) => $query->whereKey($id))
-                ->when($filters['category_id'], fn ($query, int $id) => $query->where('category_id', $id))));
+            ->when(
+                $filters['product_id'] || $filters['category_id'],
+                fn ($query) => $query->whereHas('lines.product', fn ($product) => $product
+                    ->when($filters['product_id'], fn ($query, int $id) => $query->whereKey($id))
+                    ->when($filters['category_id'], fn ($query, int $id) => $query->where('category_id', $id)))
+            );
     }
+
+    // PENDING STOCK COUNT APPROVALS
 
     private function pendingCountApprovals(array $filters): \Illuminate\Database\Eloquent\Builder
     {
@@ -461,6 +737,8 @@ class DashboardController extends Controller
             });
     }
 
+    // STOCK MOVEMENT QUERY
+
     private function movementQuery(array $filters): Builder
     {
         $query = DB::table('stock_movements as sm')
@@ -476,10 +754,13 @@ class DashboardController extends Controller
         return $this->applyStockFilters($query, $filters);
     }
 
+    // MOVEMENT CHART
+
     private function movementChart(Collection $rows): array
     {
         $daily = [];
         $types = [];
+
         foreach ($rows as $row) {
             $daily[$row->movement_date][$row->movement_type] = (float) $row->quantity;
             $types[$row->movement_type] = true;
@@ -487,12 +768,18 @@ class DashboardController extends Controller
 
         $labels = array_keys($daily);
         $movementTypes = array_keys($types);
+
         sort($movementTypes);
+
         $datasets = [];
+
         foreach ($movementTypes as $type) {
             $datasets[] = [
                 'label' => ucwords(str_replace('_', ' ', $type)),
-                'data' => array_map(fn (string $date): float => $daily[$date][$type] ?? 0.0, $labels),
+                'data' => array_map(
+                    fn (string $date): float => $daily[$date][$type] ?? 0.0,
+                    $labels
+                ),
             ];
         }
 
@@ -506,9 +793,12 @@ class DashboardController extends Controller
         ];
     }
 
+    // RECEIPT AND ISSUE CHART
+
     private function receiptIssueChart(Collection $rows): array
     {
         $daily = [];
+
         foreach ($rows as $row) {
             if (in_array($row->movement_type, ['receipt', 'dispatch'], true)) {
                 $daily[$row->movement_date][$row->movement_type] = (float) $row->quantity;
@@ -524,9 +814,12 @@ class DashboardController extends Controller
         ];
     }
 
+    // INVENTORY RECORD ACCURACY
+
     private function inventoryRecordAccuracy(array $filters): array
     {
         $tolerance = (float) InventorySetting::current()->accuracy_tolerance_percent;
+
         $lines = DB::table('stock_count_lines as scl')
             ->join('stock_counts as sc', 'sc.id', '=', 'scl.stock_count_id')
             ->join('batches as b', 'b.id', '=', 'scl.batch_id')
@@ -543,6 +836,7 @@ class DashboardController extends Controller
             ->selectRaw('DATE(sc.reviewed_at) as review_date, scl.system_quantity, scl.variance')
             ->orderBy('review_date')
             ->get();
+
         $daily = [];
         $totalCounted = 0;
         $totalMatching = 0;
@@ -550,28 +844,41 @@ class DashboardController extends Controller
         foreach ($lines as $line) {
             $systemQuantity = (float) $line->system_quantity;
             $variance = (float) $line->variance;
+
             $matches = $systemQuantity === 0.0
                 ? $variance === 0.0
                 : abs(($variance / $systemQuantity) * 100) <= $tolerance;
-            $daily[$line->review_date] ??= ['counted' => 0, 'matching' => 0];
+
+            $daily[$line->review_date] ??= [
+                'counted' => 0,
+                'matching' => 0,
+            ];
+
             $daily[$line->review_date]['counted']++;
             $daily[$line->review_date]['matching'] += $matches ? 1 : 0;
+
             $totalCounted++;
             $totalMatching += $matches ? 1 : 0;
         }
 
-        $rows = collect($daily)->map(fn (array $counts, string $date): array => [
-            'date' => $date,
-            ...$counts,
-            'discrepancies' => $counts['counted'] - $counts['matching'],
-            'accuracy_percent' => $counts['counted'] === 0 ? 0.0 : round(($counts['matching'] / $counts['counted']) * 100, 2),
-        ])->values();
+        $rows = collect($daily)
+            ->map(fn (array $counts, string $date): array => [
+                'date' => $date,
+                ...$counts,
+                'discrepancies' => $counts['counted'] - $counts['matching'],
+                'accuracy_percent' => $counts['counted'] === 0
+                    ? 0.0
+                    : round(($counts['matching'] / $counts['counted']) * 100, 2),
+            ])
+            ->values();
 
         return [
             'counted' => $totalCounted,
             'matching' => $totalMatching,
             'discrepancies' => $totalCounted - $totalMatching,
-            'accuracy_percent' => $totalCounted === 0 ? 0.0 : round(($totalMatching / $totalCounted) * 100, 2),
+            'accuracy_percent' => $totalCounted === 0
+                ? 0.0
+                : round(($totalMatching / $totalCounted) * 100, 2),
             'rows' => $rows,
         ];
     }

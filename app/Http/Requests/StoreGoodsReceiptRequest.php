@@ -60,7 +60,9 @@ class StoreGoodsReceiptRequest extends FormRequest
             'lines.*.location_id' => [
                 'required',
                 'integer',
-                Rule::exists('locations', 'id')->where('type', 'bin')->where('status', 'active'),
+                Rule::exists('locations', 'id')
+                    ->where('type', 'receiving')
+                    ->where('status', 'active'),
             ],
         ];
     }
@@ -70,25 +72,43 @@ class StoreGoodsReceiptRequest extends FormRequest
         $validator->after(function (Validator $validator): void {
             $lines = collect($this->input('lines', []))
                 ->filter(fn (mixed $line): bool => is_array($line));
+
             $products = $lines->pluck('product_id')->filter();
-            $batches = $lines->map(fn (array $line): string => ($line['product_id'] ?? '').'|'.($line['batch_number'] ?? ''));
+
+            $batches = $lines->map(
+                fn (array $line): string => ($line['product_id'] ?? '').'|'.($line['batch_number'] ?? '')
+            );
+
             if ($batches->duplicates()->isNotEmpty()) {
-                $validator->errors()->add('lines', 'Each product and batch combination can only appear once per receipt.');
+                $validator->errors()->add(
+                    'lines',
+                    'Each product and batch combination can only appear once per receipt.'
+                );
             }
 
             foreach ($lines as $index => $line) {
                 $location = isset($line['location_id'])
-                    ? Location::query()->find($line['location_id'])
+                    ? Location::query()->with('parent')->find($line['location_id'])
                     : null;
-                if ($location !== null && ! $location->isOperational()) {
+
+                if ($location === null) {
+                    continue;
+                }
+
+                if (
+                    $location->type !== 'receiving'
+                    || $location->parent?->type !== 'warehouse'
+                    || ! $location->isOperational()
+                ) {
                     $validator->errors()->add(
                         "lines.{$index}.location_id",
-                        'Choose a bin with active ancestors.',
+                        'Choose an active Receiving Area directly under an active warehouse.'
                     );
                 }
             }
 
             $purchaseOrderId = $this->input('purchase_order_id');
+
             if (! $purchaseOrderId || $validator->errors()->has('purchase_order_id')) {
                 return;
             }
@@ -96,22 +116,33 @@ class StoreGoodsReceiptRequest extends FormRequest
             $purchaseOrder = PurchaseOrder::query()
                 ->with('lines')
                 ->find($purchaseOrderId);
+
             if ($purchaseOrder === null) {
                 return;
             }
 
             $orderLines = $purchaseOrder->lines->keyBy('product_id');
+
             foreach ($products->unique() as $productId) {
                 if (! $orderLines->has((int) $productId)) {
-                    $validator->errors()->add('lines', 'Every received product must appear on the selected purchase order.');
+                    $validator->errors()->add(
+                        'lines',
+                        'Every received product must appear on the selected purchase order.'
+                    );
 
                     return;
                 }
 
                 $receivedUnits = $lines
-                    ->filter(fn (array $line): bool => (int) ($line['product_id'] ?? 0) === (int) $productId)
-                    ->sum(fn (array $line): int => $this->quantityUnits($line['quantity'] ?? 0));
+                    ->filter(
+                        fn (array $line): bool => (int) ($line['product_id'] ?? 0) === (int) $productId
+                    )
+                    ->sum(
+                        fn (array $line): int => $this->quantityUnits($line['quantity'] ?? 0)
+                    );
+
                 $orderLine = $orderLines->get((int) $productId);
+
                 $outstanding = max(
                     0,
                     $this->quantityUnits($orderLine->ordered_quantity)
@@ -121,7 +152,7 @@ class StoreGoodsReceiptRequest extends FormRequest
                 if ($receivedUnits > $outstanding && ! $this->boolean('accept_discrepancies')) {
                     $validator->errors()->add(
                         'accept_discrepancies',
-                        'The receipt exceeds at least one purchase order line. Review and acknowledge the discrepancy.',
+                        'The receipt exceeds at least one purchase order line. Review and acknowledge the discrepancy.'
                     );
 
                     return;
@@ -132,7 +163,11 @@ class StoreGoodsReceiptRequest extends FormRequest
 
     private function quantityUnits(string|int|float $quantity): int
     {
-        [$whole, $fraction] = array_pad(explode('.', number_format((float) $quantity, 3, '.', '')), 2, '000');
+        [$whole, $fraction] = array_pad(
+            explode('.', number_format((float) $quantity, 3, '.', '')),
+            2,
+            '000'
+        );
 
         return ((int) $whole * 1000) + (int) $fraction;
     }
