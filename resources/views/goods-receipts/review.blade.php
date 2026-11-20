@@ -8,8 +8,8 @@
         <div>
             <h1>Review receipt before posting</h1>
             <p class="muted">
-                Review the information entered below. This page does not post stock
-                or change purchase-order quantities.
+                Review the information entered below. Stock will only be updated
+                after you confirm this receipt.
             </p>
         </div>
 
@@ -100,20 +100,31 @@
             </table>
         </div>
 
-        <div style="margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap;">
+        <div style="margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
             <a href="{{ route('goods-receipts.create', ['purchase_order_id' => $purchaseOrder?->id]) }}"
                class="btn btn-secondary">
                 Edit Receipt Details
             </a>
 
             <a href="{{ route('goods-receipts.index') }}"
-               class="btn btn-primary">
+               class="btn btn-secondary">
                 Return to Goods Receipts
             </a>
+
+            <form method="POST"
+                  action="{{ route('goods-receipts.confirm', ['token' => $token]) }}"
+                  onsubmit="return confirm('Are you sure you want to confirm this receipt and post the stock?');">
+                @csrf
+
+                <button type="submit" class="btn btn-primary">
+                    Confirm Receipt and Post Stock
+                </button>
+            </form>
         </div>
 
         <p class="muted" style="margin-top: 16px;">
-            Review completed. No inventory transaction has been performed.
+            Review the details carefully. Confirming this receipt will record
+            the inventory transaction and update the relevant stock quantities.
         </p>
     </section>
 @endsection
