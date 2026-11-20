@@ -903,6 +903,7 @@
             }
         }
     </style>
+    @stack('styles')
 </head>
 <body>
 <div class="app-shell">
@@ -962,6 +963,11 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                         Suppliers
                     </a>
+                    <a href="{{ route('supplier-pool.index') }}" class="nav-item {{ request()->routeIs('supplier-pool.*') ? 'active' : '' }}">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3 20v-1a6 6 0 0 1 12 0v1"></path><path d="M16 11a3 3 0 0 0 0-6"></path><path d="M19 20v-1a6 6 0 0 0-3-5.2"></path></svg>
+                        Supplier Discovery Pool
+                    </a>
+
                 @endif
 
                 <!-- Procurement & Receiving -->
@@ -1295,3 +1301,4 @@
 @stack('scripts')
 </body>
 </html>
+

@@ -5,45 +5,358 @@
 
 @push('styles')
 <style>
-    .sp-page{max-width:1500px;margin:auto;color:#172033}
-    .sp-heading{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:24px}
-    .sp-heading h1{font-size:26px;font-weight:800;margin:0 0 6px}
-    .sp-muted{color:#718096;font-size:13px}
-    .sp-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 15px;border-radius:9px;text-decoration:none;border:1px solid #dce3ed;font-weight:700;font-size:13px;cursor:pointer}
-    .sp-primary{background:#155eef;color:white;border-color:#155eef}
-    .sp-light{background:#fff;color:#344054}
-    .sp-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:22px}
-    .sp-card,.sp-panel{background:#fff;border:1px solid #e7ebf2;border-radius:13px;padding:19px;box-shadow:0 3px 12px rgba(16,24,40,.035)}
-    .sp-card-label{font-size:12px;color:#667085;font-weight:700}
-    .sp-card-value{font-size:27px;font-weight:800;margin-top:9px;color:#101828}
-    .sp-card-note{font-size:12px;color:#98a2b3;margin-top:4px}
-    .sp-panel{margin-bottom:20px}
-    .sp-panel h2{font-size:16px;font-weight:800;margin:0 0 15px}
-    .sp-filters{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:11px;align-items:end}
-    .sp-field label{display:block;font-size:12px;font-weight:700;color:#475467;margin-bottom:6px}
-    .sp-field input,.sp-field select,.sp-field textarea{width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:10px 11px;background:#fff;color:#344054;font-size:13px;min-height:40px}
-    .sp-upload{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-    .sp-upload input{max-width:340px;font-size:13px}
-    .sp-table-wrap{overflow-x:auto}
-    .sp-table{width:100%;border-collapse:collapse;min-width:850px}
-    .sp-table th{background:#f8fafc;color:#667085;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:12px;border-bottom:1px solid #e7ebf2}
-    .sp-table td{padding:14px 12px;border-bottom:1px solid #edf0f4;font-size:13px;vertical-align:middle}
-    .sp-table tr:last-child td{border-bottom:0}
-    .sp-company{font-weight:750;color:#101828}
-    .sp-sub{font-size:12px;color:#98a2b3;margin-top:4px}
-    .sp-badge{display:inline-block;padding:5px 9px;border-radius:20px;font-size:11px;font-weight:750;white-space:nowrap}
-    .sp-discovered{background:#eff8ff;color:#175cd3}
-    .sp-under_review{background:#fffaeb;color:#b54708}
-    .sp-verified{background:#ecfdf3;color:#027a48}
-    .sp-rejected{background:#fef3f2;color:#b42318}
-    .sp-action{color:#155eef;text-decoration:none;font-weight:750}
-    .sp-empty{text-align:center;padding:35px;color:#667085}
-    .sp-alert{padding:12px 14px;border-radius:9px;margin-bottom:15px;font-size:13px}
-    .sp-success{background:#ecfdf3;color:#027a48}
-    .sp-error{background:#fef3f2;color:#b42318}
-    .sp-pagination{margin-top:18px}
-    @media(max-width:900px){.sp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sp-filters{grid-template-columns:1fr 1fr}}
-    @media(max-width:560px){.sp-grid{grid-template-columns:1fr 1fr}.sp-filters{grid-template-columns:1fr}.sp-heading h1{font-size:22px}}
+    .sp-page {
+        max-width: 1500px;
+        margin: auto;
+        color: #172033;
+    }
+
+    .sp-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+    }
+
+    .sp-heading h1 {
+        font-size: 26px;
+        font-weight: 800;
+        margin: 0 0 6px;
+    }
+
+    .sp-muted {
+        color: #718096;
+        font-size: 13px;
+    }
+
+    .sp-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 15px;
+        border-radius: 9px;
+        text-decoration: none;
+        border: 1px solid #dce3ed;
+        font-weight: 700;
+        font-size: 13px;
+        cursor: pointer;
+        transition: .2s ease;
+    }
+
+    .sp-primary {
+        background: #155eef;
+        color: white;
+        border-color: #155eef;
+    }
+
+    .sp-primary:hover {
+        background: #104dcc;
+        color: white;
+    }
+
+    .sp-light {
+        background: #fff;
+        color: #344054;
+    }
+
+    .sp-light:hover {
+        background: #f8fafc;
+        border-color: #155eef;
+        color: #155eef;
+    }
+
+    .sp-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 15px;
+        margin-bottom: 22px;
+    }
+
+    .sp-card,
+    .sp-panel {
+        background: #fff;
+        border: 1px solid #e7ebf2;
+        border-radius: 13px;
+        padding: 19px;
+        box-shadow: 0 3px 12px rgba(16,24,40,.035);
+    }
+
+    .sp-card-label {
+        font-size: 12px;
+        color: #667085;
+        font-weight: 700;
+    }
+
+    .sp-card-value {
+        font-size: 27px;
+        font-weight: 800;
+        margin-top: 9px;
+        color: #101828;
+    }
+
+    .sp-card-note {
+        font-size: 12px;
+        color: #98a2b3;
+        margin-top: 4px;
+    }
+
+    .sp-panel {
+        margin-bottom: 20px;
+    }
+
+    .sp-panel h2 {
+        font-size: 16px;
+        font-weight: 800;
+        margin: 0 0 15px;
+    }
+
+    .sp-filters {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr auto;
+        gap: 11px;
+        align-items: end;
+    }
+
+    .sp-field label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        color: #475467;
+        margin-bottom: 6px;
+    }
+
+    .sp-field input,
+    .sp-field select,
+    .sp-field textarea {
+        width: 100%;
+        border: 1px solid #d0d5dd;
+        border-radius: 8px;
+        padding: 10px 11px;
+        background: #fff;
+        color: #344054;
+        font-size: 13px;
+        min-height: 40px;
+    }
+
+    .sp-upload {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .sp-upload input {
+        max-width: 340px;
+        font-size: 13px;
+    }
+
+    .sp-table-wrap {
+        overflow-x: auto;
+    }
+
+    .sp-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 850px;
+    }
+
+    .sp-table th {
+        background: #f8fafc;
+        color: #667085;
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        padding: 12px;
+        border-bottom: 1px solid #e7ebf2;
+    }
+
+    .sp-table td {
+        padding: 14px 12px;
+        border-bottom: 1px solid #edf0f4;
+        font-size: 13px;
+        vertical-align: middle;
+    }
+
+    .sp-table tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .sp-company {
+        font-weight: 750;
+        color: #101828;
+    }
+
+    .sp-sub {
+        font-size: 12px;
+        color: #98a2b3;
+        margin-top: 4px;
+    }
+
+    .sp-badge {
+        display: inline-block;
+        padding: 5px 9px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 750;
+        white-space: nowrap;
+    }
+
+    .sp-discovered {
+        background: #eff8ff;
+        color: #175cd3;
+    }
+
+    .sp-under_review {
+        background: #fffaeb;
+        color: #b54708;
+    }
+
+    .sp-verified {
+        background: #ecfdf3;
+        color: #027a48;
+    }
+
+    .sp-rejected {
+        background: #fef3f2;
+        color: #b42318;
+    }
+
+    .sp-action {
+        color: #155eef;
+        text-decoration: none;
+        font-weight: 750;
+    }
+
+    .sp-action:hover {
+        color: #104dcc;
+        text-decoration: underline;
+    }
+
+    .sp-empty {
+        text-align: center;
+        padding: 35px;
+        color: #667085;
+    }
+
+    .sp-alert {
+        padding: 12px 14px;
+        border-radius: 9px;
+        margin-bottom: 15px;
+        font-size: 13px;
+    }
+
+    .sp-success {
+        background: #ecfdf3;
+        color: #027a48;
+    }
+
+    .sp-error {
+        background: #fef3f2;
+        color: #b42318;
+    }
+
+    /* Compact Supplier Pool pagination */
+    .sp-pagination {
+        margin-top: 18px;
+        font-size: 12px;
+        color: #344054;
+    }
+
+    .sp-pagination nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .sp-pagination nav a,
+    .sp-pagination nav span[aria-current="page"],
+    .sp-pagination nav span[aria-disabled="true"] {
+        min-width: 30px;
+        height: 30px;
+        padding: 5px 9px;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 6px;
+        font-size: 12px;
+        line-height: 1;
+        text-decoration: none;
+        border: 1px solid #dce3ed;
+        color: #172033;
+        background: #fff;
+    }
+
+    .sp-pagination nav a:hover {
+        background: #eff6ff;
+        color: #155eef;
+        border-color: #155eef;
+    }
+
+    .sp-pagination nav span[aria-current="page"] {
+        background: #155eef;
+        color: #fff;
+        border-color: #155eef;
+        font-weight: 700;
+    }
+
+    .sp-pagination nav span[aria-disabled="true"] {
+        color: #98a2b3;
+        background: #f8fafc;
+        border-color: #e7ebf2;
+    }
+
+    .sp-pagination nav svg {
+        width: 13px !important;
+        height: 13px !important;
+        max-width: 13px;
+        max-height: 13px;
+        stroke-width: 2;
+    }
+
+    .sp-pagination nav p {
+        font-size: 12px;
+        color: #667085;
+        margin: 0;
+    }
+
+    .sp-pagination nav a,
+    .sp-pagination nav span {
+        box-shadow: none !important;
+    }
+
+    @media(max-width: 900px) {
+        .sp-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .sp-filters {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media(max-width: 560px) {
+        .sp-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .sp-filters {
+            grid-template-columns: 1fr;
+        }
+
+        .sp-heading h1 {
+            font-size: 22px;
+        }
+
+        .sp-pagination nav {
+            justify-content: center;
+        }
+    }
 </style>
 @endpush
 
@@ -51,7 +364,9 @@
 <div class="sp-page">
 
     @if(session('status'))
-        <div class="sp-alert sp-success">{{ session('status') }}</div>
+        <div class="sp-alert sp-success">
+            {{ session('status') }}
+        </div>
     @endif
 
     @if($errors->any())
@@ -69,9 +384,20 @@
         <div>
             <div class="sp-muted">Procurement / Supplier Management</div>
             <h1>Supplier Discovery Pool</h1>
-            <div class="sp-muted">Identify, review and maintain potential suppliers before adding them to your supplier records.</div>
+            <div class="sp-muted">
+                Identify, review and maintain potential suppliers before adding them to your supplier records.
+            </div>
         </div>
-        <a href="{{ route('supplier-pool.create') }}" class="sp-btn sp-primary">＋ Add Potential Supplier</a>
+
+        <div style="display:flex;gap:9px;flex-wrap:wrap">
+            <a href="{{ route('supplier-pool.workbook') }}" class="sp-btn sp-light">
+                ↓ Download Supplier Workbook
+            </a>
+
+            <a href="{{ route('supplier-pool.create') }}" class="sp-btn sp-primary">
+                ＋ Add Potential Supplier
+            </a>
+        </div>
     </div>
 
     <div class="sp-grid">
@@ -80,16 +406,19 @@
             <div class="sp-card-value">{{ number_format($metrics['total'] ?? 0) }}</div>
             <div class="sp-card-note">All discovery records</div>
         </div>
+
         <div class="sp-card">
             <div class="sp-card-label">Discovered</div>
             <div class="sp-card-value">{{ number_format($metrics['discovered'] ?? 0) }}</div>
             <div class="sp-card-note">Awaiting initial review</div>
         </div>
+
         <div class="sp-card">
             <div class="sp-card-label">Under Review</div>
             <div class="sp-card-value">{{ number_format($metrics['under_review'] ?? 0) }}</div>
             <div class="sp-card-note">Being assessed</div>
         </div>
+
         <div class="sp-card">
             <div class="sp-card-label">Verified</div>
             <div class="sp-card-value">{{ number_format($metrics['verified'] ?? 0) }}</div>
@@ -99,29 +428,51 @@
 
     <div class="sp-panel">
         <h2>Find Potential Suppliers</h2>
+
         <form method="GET" action="{{ route('supplier-pool.index') }}" class="sp-filters">
             <div class="sp-field">
                 <label for="sp-search">Search suppliers</label>
-                <input id="sp-search" type="text" name="search" value="{{ $filters['search'] ?? request('search') }}" placeholder="Company, contact, email or location">
+                <input
+                    id="sp-search"
+                    type="text"
+                    name="search"
+                    value="{{ $filters['search'] ?? request('search') }}"
+                    placeholder="Company, contact, email or location"
+                >
             </div>
+
             <div class="sp-field">
                 <label for="sp-source">Source</label>
                 <select id="sp-source" name="source_type">
                     <option value="">All sources</option>
+
                     @foreach(['manual'=>'Manual','website'=>'Website','facebook'=>'Facebook','linkedin'=>'LinkedIn','other'=>'Other'] as $value=>$label)
-                        <option value="{{ $value }}" @selected(($filters['source_type'] ?? request('source_type')) === $value)>{{ $label }}</option>
+                        <option
+                            value="{{ $value }}"
+                            @selected(($filters['source_type'] ?? request('source_type')) === $value)
+                        >
+                            {{ $label }}
+                        </option>
                     @endforeach
                 </select>
             </div>
+
             <div class="sp-field">
                 <label for="sp-status">Review status</label>
                 <select id="sp-status" name="status">
                     <option value="">All statuses</option>
+
                     @foreach(['discovered'=>'Discovered','under_review'=>'Under Review','verified'=>'Verified','rejected'=>'Rejected'] as $value=>$label)
-                        <option value="{{ $value }}" @selected(($filters['status'] ?? request('status')) === $value)>{{ $label }}</option>
+                        <option
+                            value="{{ $value }}"
+                            @selected(($filters['status'] ?? request('status')) === $value)
+                        >
+                            {{ $label }}
+                        </option>
                     @endforeach
                 </select>
             </div>
+
             <div style="display:flex;gap:8px">
                 <button type="submit" class="sp-btn sp-primary">Apply</button>
                 <a href="{{ route('supplier-pool.index') }}" class="sp-btn sp-light">Reset</a>
@@ -131,15 +482,32 @@
 
     <div class="sp-panel">
         <h2>Import Supplier List</h2>
+
         <p class="sp-muted" style="margin-top:-7px;margin-bottom:14px">
-            Select a CSV file containing a <strong>company_name</strong> column. Optional columns include contact_person, email, phone, website, source_url, location and description.
+            Upload an Excel (.xlsx) or CSV file containing supplier information.
+            The Supplier Master List sheet is supported. CSV files should contain
+            a <strong>company_name</strong> column. Optional columns include
+            contact_person, email, phone, website, source_url, location and description.
         </p>
-        <form method="POST" action="{{ route('supplier-pool.import') }}" enctype="multipart/form-data" class="sp-upload">
+
+        <form
+            method="POST"
+            action="{{ route('supplier-pool.import') }}"
+            enctype="multipart/form-data"
+            class="sp-upload"
+        >
             @csrf
-            <input type="file" name="file" accept=".csv,.txt" required>
-            <button type="submit" class="sp-btn sp-light">Import CSV</button>
+
+            <input type="file" name="file" accept=".xlsx,.csv,.txt" required>
+
+            <button type="submit" class="sp-btn sp-light">
+                Import Supplier File
+            </button>
         </form>
-        <div class="sp-muted" style="margin-top:9px">CSV import changes records when submitted. Do not submit it during this page check.</div>
+
+        <div class="sp-muted" style="margin-top:9px">
+            Excel (.xlsx) and CSV files are supported. Duplicate supplier names are skipped during import.
+        </div>
     </div>
 
     <div class="sp-panel">
@@ -162,43 +530,76 @@
                         <th>Action</th>
                     </tr>
                 </thead>
+
                 <tbody>
                     @forelse($leads as $lead)
                         <tr>
                             <td>
-                                <div class="sp-company">{{ $lead->company_name }}</div>
+                                <div class="sp-company">
+                                    {{ $lead->company_name }}
+                                </div>
+
                                 @if($lead->website)
                                     <div class="sp-sub">
-                                        <a href="{{ $lead->website }}" target="_blank" rel="noopener noreferrer" class="sp-action">Visit website ↗</a>
+                                        <a
+                                            href="{{ $lead->website }}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="sp-action"
+                                        >
+                                            Visit website ↗
+                                        </a>
                                     </div>
                                 @endif
                             </td>
+
                             <td>
                                 <div>{{ $lead->contact_person ?: 'No contact person' }}</div>
                                 <div class="sp-sub">{{ $lead->email ?: 'No email' }}</div>
                                 <div class="sp-sub">{{ $lead->phone ?: 'No phone' }}</div>
                             </td>
+
                             <td>
                                 <div>{{ ucfirst($lead->source_type ?? 'other') }}</div>
+
                                 @if($lead->source_url)
-                                    <div class="sp-sub"><a href="{{ $lead->source_url }}" target="_blank" rel="noopener noreferrer" class="sp-action">Source link ↗</a></div>
+                                    <div class="sp-sub">
+                                        <a
+                                            href="{{ $lead->source_url }}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="sp-action"
+                                        >
+                                            Source link ↗
+                                        </a>
+                                    </div>
                                 @endif
                             </td>
+
                             <td>{{ $lead->location ?: '—' }}</td>
+
                             <td>
                                 <span class="sp-badge sp-{{ $lead->status }}">
                                     {{ ucwords(str_replace('_', ' ', $lead->status)) }}
                                 </span>
                             </td>
+
                             <td>
-                                <a href="{{ route('supplier-pool.edit', $lead) }}" class="sp-action">Review / Edit →</a>
+                                <a
+                                    href="{{ route('supplier-pool.edit', $lead) }}"
+                                    class="sp-action"
+                                >
+                                    Review / Edit →
+                                </a>
                             </td>
                         </tr>
                     @empty
                         <tr>
                             <td colspan="6" class="sp-empty">
                                 <strong>No potential suppliers found.</strong>
-                                <div class="sp-sub">Try changing your filters or add a potential supplier.</div>
+                                <div class="sp-sub">
+                                    Try changing your filters or add a potential supplier.
+                                </div>
                             </td>
                         </tr>
                     @endforelse
@@ -206,7 +607,9 @@
             </table>
         </div>
 
-        <div class="sp-pagination">{{ $leads->links() }}</div>
+        <div class="sp-pagination">
+            {{ $leads->links() }}
+        </div>
     </div>
 </div>
 @endsection

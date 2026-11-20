@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
-use SplFileObject;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SupplierLeadController extends Controller
 {
@@ -19,22 +19,17 @@ class SupplierLeadController extends Controller
      * - Administrator
      * - Warehouse Manager
      * - Procurement Officer
-     *
-     * Other roles are denied unless their permissions are explicitly
-     * updated in config/roles.php.
      */
     private function checkAccess(Request $request): void
     {
         $user = $request->user();
 
-        // Ensure the user is authenticated.
         abort_unless(
             $user,
             401,
             'You must log in to access the Supplier Pool.'
         );
 
-        // Check the user's actual permissions.
         $canManageSuppliers =
             $user->hasPermission('Manage supplier records and contacts')
             || $user->hasPermission('Manage product catalog, categories, and suppliers');
@@ -61,8 +56,8 @@ class SupplierLeadController extends Controller
                     'discovered',
                     'under_review',
                     'verified',
-                    'rejected'
-                ])
+                    'rejected',
+                ]),
             ],
             'source_type' => [
                 'nullable',
@@ -71,8 +66,8 @@ class SupplierLeadController extends Controller
                     'website',
                     'facebook',
                     'linkedin',
-                    'other'
-                ])
+                    'other',
+                ]),
             ],
         ]);
 
@@ -143,8 +138,8 @@ class SupplierLeadController extends Controller
                     'website',
                     'facebook',
                     'linkedin',
-                    'other'
-                ])
+                    'other',
+                ]),
             ],
             'source_url' => ['nullable', 'url', 'max:2048'],
             'location' => ['nullable', 'string', 'max:255'],
@@ -196,8 +191,8 @@ class SupplierLeadController extends Controller
                     'website',
                     'facebook',
                     'linkedin',
-                    'other'
-                ])
+                    'other',
+                ]),
             ],
             'source_url' => ['nullable', 'url', 'max:2048'],
             'location' => ['nullable', 'string', 'max:255'],
@@ -208,8 +203,8 @@ class SupplierLeadController extends Controller
                     'discovered',
                     'under_review',
                     'verified',
-                    'rejected'
-                ])
+                    'rejected',
+                ]),
             ],
             'review_notes' => ['nullable', 'string', 'max:5000'],
         ]);
@@ -221,7 +216,35 @@ class SupplierLeadController extends Controller
     }
 
     /**
-     * Import supplier leads from a CSV file.
+     * Download the Mukwano supplier reference workbook.
+     */
+    public function downloadWorkbook(
+        Request $request
+    ): BinaryFileResponse {
+        $this->checkAccess($request);
+
+        $path = public_path(
+            'downloads/Mukwano_250_Supplier_Pool.xlsx'
+        );
+
+        abort_unless(
+            file_exists($path) && is_file($path),
+            404,
+            'The supplier workbook could not be found.'
+        );
+
+        return response()->download(
+            $path,
+            'Mukwano_250_Supplier_Pool.xlsx',
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'private, no-store',
+            ]
+        );
+    }
+
+    /**
+     * Import supplier leads from an Excel or CSV file.
      */
     public function import(Request $request): RedirectResponse
     {
@@ -231,108 +254,206 @@ class SupplierLeadController extends Controller
             'file' => [
                 'required',
                 'file',
-                'mimes:csv,txt',
-                'max:5120'
+                'mimes:xlsx,csv,txt',
+                'max:5120',
             ],
         ]);
 
-        $file = new SplFileObject(
-            $request->file('file')->getRealPath(),
-            'r'
-        );
+        try {
+            $path = $request->file('file')->getRealPath();
 
-        $file->setCsvControl(',', '"', '');
-
-        $headers = $file->fgetcsv();
-
-        if (!$headers || $headers === [null]) {
-            return back()->withErrors([
-                'file' => 'The CSV file is empty.'
-            ]);
-        }
-
-        $headers = array_map(
-            fn ($value) => strtolower(trim((string) $value)),
-            $headers
-        );
-
-        if (count($headers) !== count(array_unique($headers))) {
-            return back()->withErrors([
-                'file' => 'Your CSV contains duplicate column headings.'
-            ]);
-        }
-
-        $required = ['company_name'];
-
-        if (array_diff($required, $headers)) {
-            return back()->withErrors([
-                'file' => 'Your CSV must include a company_name column.'
-            ]);
-        }
-
-        $count = 0;
-        $userId = $request->user()->id;
-
-        DB::transaction(function () use (
-            $file,
-            $headers,
-            $userId,
-            &$count
-        ) {
-            while (!$file->eof() && $count < 1000) {
-                $values = $file->fgetcsv();
-
-                if (!$values || $values === [null]) {
-                    continue;
-                }
-
-                // Ignore rows containing more values than the header.
-                if (count($values) > count($headers)) {
-                    continue;
-                }
-
-                $values = array_pad(
-                    $values,
-                    count($headers),
-                    null
-                );
-
-                $row = array_combine($headers, $values);
-
-                if (!$row) {
-                    continue;
-                }
-
-                $companyName = trim(
-                    (string) ($row['company_name'] ?? '')
-                );
-
-                if ($companyName === '') {
-                    continue;
-                }
-
-                SupplierLead::create([
-                    'company_name' => $companyName,
-                    'contact_person' => $row['contact_person'] ?? null,
-                    'email' => $row['email'] ?? null,
-                    'phone' => $row['phone'] ?? null,
-                    'website' => $row['website'] ?? null,
-                    'source_type' => 'other',
-                    'source_url' => $row['source_url'] ?? null,
-                    'location' => $row['location'] ?? null,
-                    'description' => $row['description'] ?? null,
-                    'status' => 'discovered',
-                    'added_by' => $userId,
-                ]);
-
-                $count++;
-            }
-        });
-
-        return to_route('supplier-pool.index')
-            ->with(
-                'status',
-                "{$count} potential supplier records imported."
+            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile(
+                $path
             );
+
+            if ($reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Csv) {
+                $reader->setDelimiter(',');
+                $reader->setEnclosure('"');
+            }
+
+            $reader->setReadDataOnly(true);
+
+            $spreadsheet = $reader->load($path);
+
+            $sheet = $spreadsheet->getSheetByName('Supplier Master List')
+                ?? $spreadsheet->getActiveSheet();
+
+            $rows = $sheet->toArray('', true, true, false);
+
+            if (count($rows) < 2) {
+                return back()->withErrors([
+                    'file' => 'The selected file contains no supplier records.',
+                ]);
+            }
+
+            $headers = array_map(function ($value) {
+                $value = preg_replace(
+                    '/^\xEF\xBB\xBF/',
+                    '',
+                    (string) $value
+                );
+
+                return strtolower(trim($value));
+            }, array_shift($rows));
+
+            if (count($headers) !== count(array_unique($headers))) {
+                return back()->withErrors([
+                    'file' => 'The file contains duplicate column headings.',
+                ]);
+            }
+
+            $normalise = fn ($value) => preg_replace(
+                '/[^a-z0-9]+/',
+                '_',
+                trim(strtolower((string) $value))
+            );
+
+            $headers = array_map($normalise, $headers);
+
+            $columns = [
+                'supplier_company_name' => 'company_name',
+                'supplier_name' => 'company_name',
+                'company_name' => 'company_name',
+                'contact_person' => 'contact_person',
+                'email_address' => 'email',
+                'email' => 'email',
+                'phone_number' => 'phone',
+                'phone' => 'phone',
+                'website' => 'website',
+                'source_url' => 'source_url',
+                'district_location' => 'district',
+                'district' => 'district',
+                'location' => 'district',
+                'physical_address' => 'physical_address',
+                'product_description_scope' => 'description',
+                'products_supplied' => 'products',
+                'supplier_category' => 'category',
+                'source_verification_notes' => 'notes',
+            ];
+
+            $mapped = array_map(
+                fn ($header) => $columns[$header] ?? $header,
+                $headers
+            );
+
+            if (!in_array('company_name', $mapped, true)) {
+                return back()->withErrors([
+                    'file' => 'The file must contain a Supplier / Company Name or company_name column.',
+                ]);
+            }
+
+            $existingNames = SupplierLead::pluck('company_name')
+                ->map(fn ($name) => strtolower(trim($name)))
+                ->flip()
+                ->all();
+
+            $count = 0;
+            $duplicates = 0;
+            $skipped = 0;
+
+            $userId = $request->user()->id;
+
+            DB::transaction(function () use (
+                $rows,
+                $mapped,
+                &$existingNames,
+                $userId,
+                &$count,
+                &$duplicates,
+                &$skipped
+            ) {
+                foreach ($rows as $values) {
+                    if (count($values) !== count($mapped)) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $row = array_combine($mapped, $values);
+
+                    $companyName = trim(
+                        (string) ($row['company_name'] ?? '')
+                    );
+
+                    if ($companyName === '') {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $key = strtolower($companyName);
+
+                    if (isset($existingNames[$key])) {
+                        $duplicates++;
+                        continue;
+                    }
+
+                    $existingNames[$key] = true;
+
+                    $physical = trim(
+                        (string) ($row['physical_address'] ?? '')
+                    );
+
+                    $district = trim(
+                        (string) ($row['district'] ?? '')
+                    );
+
+                    $location = implode(', ', array_filter([
+                        $physical,
+                        $district,
+                    ]));
+
+                    $description = implode("\n", array_filter([
+                        $row['category'] ?? '',
+                        $row['products'] ?? '',
+                        $row['description'] ?? '',
+                        $row['notes'] ?? '',
+                    ]));
+
+                    $sourceUrl = trim(
+                        (string) ($row['source_url'] ?? '')
+                    );
+
+                    $website = trim(
+                        (string) ($row['website'] ?? '')
+                    );
+
+                    if (
+                        $website === ''
+                        && filter_var($sourceUrl, FILTER_VALIDATE_URL)
+                    ) {
+                        $website = $sourceUrl;
+                    }
+
+                    SupplierLead::create([
+                        'company_name' => $companyName,
+                        'contact_person' => $row['contact_person'] ?? null,
+                        'email' => $row['email'] ?? null,
+                        'phone' => $row['phone'] ?? null,
+                        'website' => $website ?: null,
+                        'source_type' => 'other',
+                        'source_url' => $sourceUrl ?: null,
+                        'location' => $location ?: null,
+                        'description' => $description ?: null,
+                        'status' => 'discovered',
+                        'added_by' => $userId,
+                    ]);
+
+                    $count++;
+                }
+            });
+
+            $spreadsheet->disconnectWorksheets();
+
+            return to_route('supplier-pool.index')->with(
+                'status',
+                "{$count} supplier records imported. {$duplicates} duplicates skipped and {$skipped} invalid or empty rows skipped."
+            );
+
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->withErrors([
+                'file' => 'The supplier file could not be imported. Please check its format and headings.',
+            ]);
+        }
     }
 }

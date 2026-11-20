@@ -34,6 +34,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierMessageController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\SupplierLeadController;
+
 use Illuminate\Support\Facades\Route;
 
 // Guest authentication routes
@@ -226,7 +227,6 @@ Route::middleware('auth')->group(function () {
     Route::get('alerts', [AlertController::class, 'index'])
         ->name('alerts.index');
 
-    // Dedicated Near-Expiry View (Phase 9 - P36)
     Route::get('alerts/near-expiry', [AlertController::class, 'nearExpiry'])
         ->name('alerts.expiring');
 
@@ -422,7 +422,6 @@ Route::middleware('auth')->group(function () {
         'submit'
     ])->name('stock-counts.submit');
 
-    // Save an incomplete or completed count without submitting for approval
     Route::post('stock-counts/{stockCount}/save-draft', [
         StockCountController::class,
         'saveDraft'
@@ -569,7 +568,6 @@ Route::middleware('auth')->group(function () {
 });
 
 // Supplier Discovery Pool
-// All supplier-pool routes require an authenticated user.
 Route::middleware('auth')
     ->prefix('supplier-pool')
     ->name('supplier-pool.')
@@ -577,6 +575,11 @@ Route::middleware('auth')
 
         Route::get('/', [SupplierLeadController::class, 'index'])
             ->name('index');
+
+        Route::get('/download-workbook', [
+            SupplierLeadController::class,
+            'downloadWorkbook'
+        ])->name('workbook');
 
         Route::get('/create', [SupplierLeadController::class, 'create'])
             ->name('create');
